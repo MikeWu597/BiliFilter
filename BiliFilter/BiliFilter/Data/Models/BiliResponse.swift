@@ -5,21 +5,11 @@ struct BiliApiResponse<T: Codable>: Codable {
     let code: Int
     let message: String
     let data: T?
-
     var isSuccess: Bool { code == 0 }
     var errorMessage: String { message }
 }
 
-// MARK: - 空数据占位
 struct EmptyData: Codable {}
-
-// MARK: - 分页信息
-struct PageInfo: Codable {
-    let num: Int?
-    let size: Int?
-    let count: Int?
-    let acount: Int?
-}
 
 // MARK: - 视频基础模型
 struct VideoItem: Codable, Identifiable {
@@ -28,7 +18,7 @@ struct VideoItem: Codable, Identifiable {
     let aid: Int64?
     let title: String
     let pic: String
-    let duration: String
+    let duration: Int
     let pubdate: Int64?
     let owner: OwnerInfo?
     let stat: StatInfo?
@@ -36,8 +26,25 @@ struct VideoItem: Codable, Identifiable {
     let desc: String?
     let short_link: String?
 
+    var durationText: String { formatSeconds(duration) }
+
     enum CodingKeys: String, CodingKey {
         case id, bvid, aid, title, pic, duration, pubdate, owner, stat, cid, desc, short_link
+    }
+
+    init(id: Int64 = 0, bvid: String = "", aid: Int64? = nil, title: String, pic: String, duration: Int = 0, pubdate: Int64? = nil, owner: OwnerInfo? = nil, stat: StatInfo? = nil, cid: Int64? = nil, desc: String? = nil, short_link: String? = nil) {
+        self.id = id
+        self.bvid = bvid
+        self.aid = aid
+        self.title = title
+        self.pic = pic
+        self.duration = duration
+        self.pubdate = pubdate
+        self.owner = owner
+        self.stat = stat
+        self.cid = cid
+        self.desc = desc
+        self.short_link = short_link
     }
 
     init(from decoder: Decoder) throws {
@@ -47,7 +54,7 @@ struct VideoItem: Codable, Identifiable {
         aid = try container.decodeIfPresent(Int64.self, forKey: .aid)
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
         pic = try container.decodeIfPresent(String.self, forKey: .pic) ?? ""
-        duration = try container.decodeIfPresent(String.self, forKey: .duration) ?? "0:00"
+        duration = try container.decodeIfPresent(Int.self, forKey: .duration) ?? 0
         pubdate = try container.decodeIfPresent(Int64.self, forKey: .pubdate)
         owner = try container.decodeIfPresent(OwnerInfo.self, forKey: .owner)
         stat = try container.decodeIfPresent(StatInfo.self, forKey: .stat)
@@ -57,15 +64,26 @@ struct VideoItem: Codable, Identifiable {
     }
 }
 
+func formatSeconds(_ seconds: Int) -> String {
+    guard seconds > 0 else { return "0:00" }
+    let h = seconds / 3600
+    let m = (seconds % 3600) / 60
+    let s = seconds % 60
+    if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
+    return String(format: "%d:%02d", m, s)
+}
+
+func formatCount(_ count: Int) -> String {
+    if count >= 10000 { return String(format: "%.1f万", Double(count) / 10000.0) }
+    return String(count)
+}
+
 // MARK: - UP主信息
 struct OwnerInfo: Codable {
     let mid: Int64
     let name: String
     let face: String
-
-    enum CodingKeys: String, CodingKey {
-        case mid, name, face
-    }
+    enum CodingKeys: String, CodingKey { case mid, name, face }
 }
 
 // MARK: - 统计数据
@@ -77,18 +95,14 @@ struct StatInfo: Codable {
     let coin: Int?
     let share: Int?
     let like: Int?
-
     var viewCount: Int { view ?? 0 }
     var danmakuCount: Int { danmaku ?? 0 }
     var replyCount: Int { reply ?? 0 }
     var likeCount: Int { like ?? 0 }
-
-    enum CodingKeys: String, CodingKey {
-        case view, danmaku, reply, favorite, coin, share, like
-    }
+    enum CodingKeys: String, CodingKey { case view, danmaku, reply, favorite, coin, share, like }
 }
 
-// MARK: - 推荐响应
+// MARK: - 推荐响应 (B站实际返回格式)
 struct RecommendResponse: Codable {
     let code: Int
     let message: String?
@@ -101,23 +115,25 @@ struct RecommendData: Codable {
 }
 
 struct RecommendItem: Codable {
-    let id: Int64?
-    let bvid: String?
-    let aid: Int64?
-    let title: String?
+    let id: Int
+    let bvid: String
+    let cid: Int
+    let goto: String?
+    let uri: String?
     let pic: String?
-    let duration: String?
+    let title: String?
+    let duration: Int
     let pubdate: Int64?
     let owner: OwnerInfo?
     let stat: StatInfo?
-    let cid: Int64?
-    let goto: String?
-    let uri: String?
-    let desc: String?
-    let short_link: String?
-    let card_goto: String?
+    let rcmd_reason: RcmdReason?
     let args: RecommendArgs?
     let three_point: ThreePoint?
+}
+
+struct RcmdReason: Codable {
+    let content: String?
+    enum CodingKeys: String, CodingKey { case content }
 }
 
 struct RecommendArgs: Codable {
@@ -129,6 +145,7 @@ struct RecommendArgs: Codable {
     let tid: Int?
     let tname: String?
     let cover: String?
+    let aid_v2: Int64?
 }
 
 struct ThreePoint: Codable {
@@ -164,10 +181,7 @@ struct NavData: Codable {
     let wallet: WalleInfo?
     let pendant: PendantInfo?
     let level_info: LevelInfo?
-
-    enum CodingKeys: String, CodingKey {
-        case isLogin, mid, uname, face, money, wallet, pendant, level_info
-    }
+    enum CodingKeys: String, CodingKey { case isLogin, mid, uname, face, money, wallet, pendant, level_info }
 }
 
 struct WalleInfo: Codable {
@@ -186,7 +200,7 @@ struct LevelInfo: Codable {
     let current_exp: Int?
 }
 
-// MARK: - 用户空间
+// MARK: - 空间
 struct SpaceResponse: Codable {
     let code: Int
     let message: String?
@@ -203,15 +217,22 @@ struct SpaceData: Codable {
     let fans: Int?
     let friend: Int?
     let attention: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case mid, name, sex, face, sign, level
-        case fans = "fans"
-        case friend, attention
-    }
+    enum CodingKeys: String, CodingKey { case mid, name, sex, face, sign, level, fans, friend, attention }
 }
 
-// MARK: - 搜索响应
+// MARK: - 热门
+struct PopularData: Codable {
+    let list: [VideoItem]?
+    let num: Int?
+    enum CodingKeys: String, CodingKey { case list, num }
+}
+
+struct DynamicRegionData: Codable {
+    let archives: [VideoItem]?
+    enum CodingKeys: String, CodingKey { case archives }
+}
+
+// MARK: - 搜索
 struct SearchResponse: Codable {
     let code: Int
     let message: String?
@@ -222,11 +243,7 @@ struct SearchData: Codable {
     let result: [SearchResultItem]?
     let numResults: Int?
     let numPages: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case result
-        case numResults, numPages
-    }
+    enum CodingKeys: String, CodingKey { case result, numResults, numPages }
 }
 
 struct SearchResultItem: Codable {
@@ -242,13 +259,10 @@ struct SearchResultItem: Codable {
     let pubdate: Int64?
     let play: Int?
     let danmaku: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case type, id, bvid, aid, title, author, mid, pic, duration, pubdate, play, danmaku
-    }
+    enum CodingKeys: String, CodingKey { case type, id, bvid, aid, title, author, mid, pic, duration, pubdate, play, danmaku }
 }
 
-// MARK: - 历史响应
+// MARK: - 历史
 struct HistoryResponse: Codable {
     let code: Int
     let message: String?
@@ -282,14 +296,10 @@ struct HistoryItem: Codable, Identifiable {
     let badge: String?
     let business: String?
     let cid: Int64?
-
-    enum CodingKeys: String, CodingKey {
-        case oid, epid, bvid, title, cover, author_name, author_mid
-        case duration, progress, view_at, badge, business, cid
-    }
+    enum CodingKeys: String, CodingKey { case oid, epid, bvid, title, cover, author_name, author_mid, duration, progress, view_at, badge, business, cid }
 }
 
-// MARK: - 收藏夹
+// MARK: - 收藏
 struct FavFolderResponse: Codable {
     let code: Int
     let message: String?

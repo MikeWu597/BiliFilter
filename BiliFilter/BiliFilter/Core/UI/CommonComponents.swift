@@ -7,7 +7,7 @@ struct VideoCardView: View {
     let upName: String
     let playCount: Int
     let danmakuCount: Int
-    let duration: String
+    let duration: Int
     var onTap: (() -> Void)?
 
     @EnvironmentObject private var themeManager: ThemeManager
@@ -39,7 +39,7 @@ struct VideoCardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 // 时长标签
-                Text(duration)
+                Text(formatSeconds(duration))
                     .font(.caption2)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -76,12 +76,7 @@ struct VideoCardView: View {
         .onTapGesture { onTap?() }
     }
 
-    private func formatCount(_ count: Int) -> String {
-        if count >= 10000 {
-            return String(format: "%.1f万", Double(count) / 10000.0)
-        }
-        return String(count)
-    }
+    // formatCount和formatSeconds已移至BiliResponse.swift
 }
 
 // MARK: - 骨架屏
