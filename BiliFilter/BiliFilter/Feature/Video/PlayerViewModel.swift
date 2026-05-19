@@ -48,6 +48,11 @@ final class PlayerViewModel: ObservableObject {
 
     func loadVideo() async {
         playerState = .loading
+        // 配置音频会话: 播放模式(忽略静音开关)、后台播放
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch { print("[Player] audio session error: \(error)") }
         print("[Player] loadVideo bvid=\(bvid) cid=\(cid)")
 
         // 1. 获取视频信息
@@ -77,16 +82,14 @@ final class PlayerViewModel: ObservableObject {
                 return
             }
             availableQualities = data.accept_quality ?? []
-            print("[Player] playUrl ok, quality=\(data.quality ?? 0), durl=\(data.durl?.count ?? 0), dash=\(data.dash?.video?.count ?? 0)")
+            print("[Player] playUrl ok, quality=\(data.quality ?? 0), durl=\(data.durl?.count ?? 0), dashV=\(data.dash?.video?.count ?? 0), dashA=\(data.dash?.audio?.count ?? 0)")
 
             // 3. 开始播放 — durl直链(MP4/FLV)优先, DASH降级
             if let durlList = data.durl, let url = extractPlayableUrl(from: durlList) {
                 startPlayback(url: url)
                 print("[Player] playing durl")
-            } else if let dash = data.dash,
-                      let raw = dash.video?.first?.baseUrl ?? dash.video?.first?.backupUrl?.first,
-                      let url = URL(string: raw.hasPrefix("http") ? raw : "https:\(raw)") {
-                startPlayback(url: url)
+            } else if let dash = data.dash {
+                startDashPlayback(dash: dash)
                 if let dur = dash.duration { duration = Double(dur) }
             } else {
                 playerState = .error("无可播放的视频流")
@@ -136,6 +139,73 @@ final class PlayerViewModel: ObservableObject {
         print("[Player] play() called")
     }
 
+    private func startDashPlayback(dash: DashInfo) {
+        guard let videoStream = dash.video?.first,
+              let videoUrl = URL(string: fixUrl(videoStream.baseUrl)) else {
+            playerState = .error("DASH视频流不可用"); return
+        }
+        let audioUrl: URL? = dash.audio?.first.flatMap { URL(string: fixUrl($0.baseUrl)) }
+
+        let videoAsset = AVURLAsset(url: videoUrl, options: ["AVURLAssetHTTPHeaderFieldsKey": videoHeaders])
+
+        guard let audioUrl = audioUrl else {
+            // 无独立音轨, 直接播视频
+            startPlayback(url: videoUrl)
+            return
+        }
+
+        let audioAsset = AVURLAsset(url: audioUrl, options: ["AVURLAssetHTTPHeaderFieldsKey": videoHeaders])
+        let composition = AVMutableComposition()
+
+        Task {
+            do {
+                // 加载轨道
+                let videoTracks = try await videoAsset.loadTracks(withMediaType: .video)
+                let audioTracks = try await audioAsset.loadTracks(withMediaType: .audio)
+                let videoDuration = try await videoAsset.load(.duration)
+
+                guard let vTrack = videoTracks.first else {
+                    playerState = .error("DASH无视频轨"); return
+                }
+                let compVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
+                try compVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: videoDuration), of: vTrack, at: .zero)
+
+                if let aTrack = audioTracks.first {
+                    let compAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+                    try compAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: videoDuration), of: aTrack, at: .zero)
+                }
+
+                let item = AVPlayerItem(asset: composition)
+                let p = AVPlayer(playerItem: item)
+                p.automaticallyWaitsToMinimizeStalling = false
+                self.player = p
+
+                self.statusObserver?.invalidate()
+                self.statusObserver = item.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
+                    Task { @MainActor in
+                        switch item.status {
+                        case .readyToPlay: self?.playerState = .playing
+                        case .failed: self?.playerState = .error(item.error?.localizedDescription ?? "DASH播放失败")
+                        default: break
+                        }
+                    }
+                }
+                addTimeObserver()
+                p.play()
+                isPlaying = true
+                print("[Player] DASH playback started (video+audio merged)")
+            } catch {
+                print("[Player] DASH composition failed: \(error), trying video-only...")
+                startPlayback(url: videoUrl)
+            }
+        }
+    }
+
+    private func fixUrl(_ raw: String?) -> String {
+        guard let raw else { return "" }
+        return raw.hasPrefix("http") ? raw : "https:\(raw)"
+    }
+
     private func addTimeObserver() {
         timeObserver = player?.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self] time in
             self?.currentTime = time.seconds
@@ -163,5 +233,6 @@ final class PlayerViewModel: ObservableObject {
         player?.pause(); statusObserver?.invalidate()
         if let o = timeObserver { player?.removeTimeObserver(o) }
         player = nil; timeObserver = nil
+        try? AVAudioSession.sharedInstance().setActive(false)
     }
 }
