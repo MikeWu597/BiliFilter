@@ -58,7 +58,9 @@ struct VideoPlayerScreen: View {
             }
             .background(themeManager.backgroundColor)
         }
-        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .enableSwipeBack()
         .statusBarHidden(viewModel.isFullscreen)
         .task { await viewModel.loadVideo() }
         .onDisappear { viewModel.cleanup() }
