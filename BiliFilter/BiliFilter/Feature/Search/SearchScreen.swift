@@ -124,14 +124,7 @@ struct SearchResultRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: URL(string: item.pic ?? "")) { phase in
-                switch phase {
-                case .success(let img): img.resizable().scaledToFill()
-                default: Rectangle().fill(themeManager.surfaceColor)
-                }
-            }
-            .frame(width: 140, height: 88)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            BiliCover(url: item.pic).frame(width: 140, height: 88)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title ?? "")

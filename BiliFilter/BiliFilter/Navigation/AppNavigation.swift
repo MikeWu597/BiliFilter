@@ -106,6 +106,7 @@ struct AppNavigation: View {
             ForEach(BottomTab.allCases, id: \.self) { tab in
                 NavigationStack(path: $navigationPath) {
                     mainView(for: tab)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .navigationDestination(for: AppRoute.self) { route in
                             destinationView(for: route)
                         }
@@ -117,6 +118,7 @@ struct AppNavigation: View {
                 .tag(tab)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tint(BottomTabColorMap[selectedTab] ?? iOSBlue)
         .environmentObject(themeManager)
     }

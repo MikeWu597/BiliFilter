@@ -216,14 +216,7 @@ struct VideoPlayerScreen: View {
 
                     // UP主信息
                     HStack {
-                        AsyncImage(url: URL(string: info.owner?.face ?? "")) { phase in
-                            switch phase {
-                            case .success(let img): img.resizable().scaledToFill()
-                            default: Circle().fill(.gray)
-                            }
-                        }
-                        .frame(width: 40, height: 40)
-                        .clipShape(Circle())
+                        BiliAvatar(url: info.owner?.face, size: 40)
 
                         VStack(alignment: .leading) {
                             Text(info.owner?.name ?? "")

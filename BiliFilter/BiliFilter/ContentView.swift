@@ -4,12 +4,9 @@ struct ContentView: View {
     @EnvironmentObject private var themeManager: ThemeManager
 
     var body: some View {
-        ZStack {
-            themeManager.backgroundColor
-                .ignoresSafeArea()
-
-            AppNavigation()
-        }
+        AppNavigation()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(themeManager.backgroundColor.ignoresSafeArea())
     }
 }
 

@@ -16,27 +16,9 @@ struct VideoCardView: View {
         VStack(alignment: .leading, spacing: 8) {
             // 封面
             ZStack(alignment: .bottomTrailing) {
-                AsyncImage(url: URL(string: coverUrl)) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(16/9, contentMode: .fill)
-                    case .failure:
-                        Rectangle()
-                            .fill(themeManager.surfaceColor)
-                            .overlay(Image(systemName: "photo").foregroundColor(.gray))
-                    case .empty:
-                        Rectangle()
-                            .fill(themeManager.surfaceColor)
-                            .shimmer()
-                    @unknown default:
-                        Rectangle().fill(themeManager.surfaceColor)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .aspectRatio(16/9, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                BiliCover(url: coverUrl)
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(16/9, contentMode: .fit)
 
                 // 时长标签
                 Text(formatSeconds(duration))
