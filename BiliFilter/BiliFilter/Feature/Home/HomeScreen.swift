@@ -31,10 +31,8 @@ struct HomeScreen: View {
     private var feedContent: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                VideoCardGrid(
-                    videos: viewModel.feedItems.compactMap { $0.toVideoItem() },
-                    columns: 2, onVideoTap: { _ in }
-                ).padding(.top, 12)
+                VideoCardGrid(videos: viewModel.feedItems.compactMap { $0.toVideoItem() }, columns: 2)
+                    .padding(.top, 12)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

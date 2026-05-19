@@ -3,8 +3,10 @@ import Foundation
 // MARK: - B站API客户端
 actor ApiClient {
     static let shared = ApiClient()
+    static let guest = ApiClient(useCookies: false)
 
     private let session: URLSession
+    private let useCookies: Bool
     private let cookieStorage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "BiliFilter")
 
     private var imgKey: String = ""
@@ -13,11 +15,14 @@ actor ApiClient {
 
     private let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    private init() {
+    private init(useCookies: Bool = true) {
+        self.useCookies = useCookies
         let config = URLSessionConfiguration.default
-        config.httpCookieStorage = cookieStorage
-        config.httpShouldSetCookies = true
-        config.httpCookieAcceptPolicy = .always
+        if useCookies {
+            config.httpCookieStorage = cookieStorage
+            config.httpShouldSetCookies = true
+            config.httpCookieAcceptPolicy = .always
+        }
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
         self.session = URLSession(configuration: config)
@@ -27,41 +32,65 @@ actor ApiClient {
 
     func ensureWbiKeys() async {
         guard !wbiKeysLoaded else { return }
-        do {
-            let keys = try await fetchWbiKeys()
-            self.imgKey = keys.img
-            self.subKey = keys.sub
+        // 先从缓存加载
+        if let cachedImg = UserDefaults.standard.string(forKey: "wbi_img_key"),
+           let cachedSub = UserDefaults.standard.string(forKey: "wbi_sub_key"),
+           !cachedImg.isEmpty, !cachedSub.isEmpty {
+            self.imgKey = cachedImg; self.subKey = cachedSub
             self.wbiKeysLoaded = true
+        }
+        // 异步尝试刷新
+        do {
+            try await refreshWbiKeys()
         } catch {
-            print("[ApiClient] Failed to fetch WBI keys: \(error)")
+            print("[ApiClient] WBI refresh failed: \(error)")
+            if !wbiKeysLoaded {
+                // 硬编码兜底密钥
+                self.imgKey = "7cd084941338484aae1ad9425b84077c"
+                self.subKey = "4932caff0ff746eab6f01bf08b70ac45"
+                self.wbiKeysLoaded = true
+            }
         }
     }
 
-    private func fetchWbiKeys() async throws -> (img: String, sub: String) {
-        let url = URL(string: "https://api.bilibili.com/x/web-interface/wbi/index/nav/config")!
-        var request = URLRequest(url: url)
+    private func refreshWbiKeys() async throws {
+        // 先访问首页建立cookie会话，避免Cloudflare拦截
+        if let homeUrl = URL(string: "https://www.bilibili.com/") {
+            var homeReq = URLRequest(url: homeUrl)
+            homeReq.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+            homeReq.setValue("en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7", forHTTPHeaderField: "Accept-Language")
+            _ = try? await session.data(for: homeReq)
+        }
+
+        var request = URLRequest(url: URL(string: "https://api.bilibili.com/x/web-interface/nav")!)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+        request.setValue("en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7", forHTTPHeaderField: "Accept-Language")
+        injectCookies(into: &request)
 
-        let (data, _) = try await session.data(for: request)
-        struct NavConfigResponse: Codable {
-            struct Data: Codable {
-                struct WbiImg: Codable {
-                    let img_url: String
-                    let sub_url: String
-                }
-                let wbi_img: WbiImg
-            }
-            let code: Int
-            let data: Data?
-        }
-        let decoded = try JSONDecoder().decode(NavConfigResponse.self, from: data)
-        guard let wbiImg = decoded.data?.wbi_img else {
+        let (data, resp) = try await session.data(for: request)
+        guard let httpResp = resp as? HTTPURLResponse, httpResp.statusCode == 200 else {
             throw ApiError.invalidResponse
         }
-        let imgKey = extractKeyFromUrl(wbiImg.img_url)
-        let subKey = extractKeyFromUrl(wbiImg.sub_url)
-        return (imgKey, subKey)
+        saveCookies(from: httpResp)
+
+        // 用 nav 接口返回的 wbi_img 提取密钥
+        struct NavResp: Codable {
+            struct Data: Codable {
+                struct WbiImg: Codable { let img_url: String; let sub_url: String }
+                let wbi_img: WbiImg
+            }
+            let code: Int; let data: Data?
+        }
+        let decoded = try JSONDecoder().decode(NavResp.self, from: data)
+        if let wbi = decoded.data?.wbi_img {
+            let img = extractKeyFromUrl(wbi.img_url)
+            let sub = extractKeyFromUrl(wbi.sub_url)
+            UserDefaults.standard.set(img, forKey: "wbi_img_key")
+            UserDefaults.standard.set(sub, forKey: "wbi_sub_key")
+            self.imgKey = img; self.subKey = sub
+            self.wbiKeysLoaded = true
+        }
     }
 
     private func extractKeyFromUrl(_ urlString: String) -> String {
@@ -186,7 +215,7 @@ actor ApiClient {
     // MARK: - Cookie管理
 
     private func injectCookies(into request: inout URLRequest) {
-        guard let url = request.url else { return }
+        guard useCookies, let url = request.url else { return }
         var cookies: [HTTPCookie] = []
 
         // buvid3

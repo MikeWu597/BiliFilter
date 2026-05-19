@@ -36,7 +36,8 @@ enum BiliAPI {
 
     // MARK: 视频播放
     case videoInfo(bvid: String)
-    case playUrl(bvid: String, cid: Int64, qn: Int, fnval: Int)
+    case playUrl(params: [String: String])
+    case playUrlLegacy(bvid: String, cid: Int64, qn: Int, fnval: Int, platform: String, highQuality: Int)
     case videoDetail(bvid: String)
     case relatedVideos(bvid: String)
     case danmakuXml(cid: Int64)
@@ -135,6 +136,7 @@ extension BiliAPI {
         case .regionVideos: return "/x/web-interface/dynamic/region"
         case .videoInfo: return "/x/web-interface/view"
         case .playUrl: return "/x/player/wbi/playurl"
+        case .playUrlLegacy: return "/x/player/playurl"
         case .videoDetail: return "/x/web-interface/view/detail"
         case .relatedVideos: return "/x/web-interface/archive/related"
         case .danmakuXml: return "/x/v1/dm/list.so"
@@ -196,14 +198,14 @@ extension BiliAPI {
             return [URLQueryItem(name: "rid", value: String(rid)), URLQueryItem(name: "pn", value: String(pn)), URLQueryItem(name: "ps", value: String(ps))]
         case .videoInfo(let bvid):
             return [URLQueryItem(name: "bvid", value: bvid)]
-        case .playUrl(let bvid, let cid, let qn, let fnval):
+        case .playUrl(let params):
+            return params.map { URLQueryItem(name: $0.key, value: $0.value) }
+        case .playUrlLegacy(let bvid, let cid, let qn, let fnval, let platform, let highQuality):
             return [
-                URLQueryItem(name: "bvid", value: bvid),
-                URLQueryItem(name: "cid", value: String(cid)),
-                URLQueryItem(name: "qn", value: String(qn)),
-                URLQueryItem(name: "fnval", value: String(fnval)),
-                URLQueryItem(name: "fnver", value: "0"),
-                URLQueryItem(name: "fourk", value: "1"),
+                URLQueryItem(name: "bvid", value: bvid), URLQueryItem(name: "cid", value: String(cid)),
+                URLQueryItem(name: "qn", value: String(qn)), URLQueryItem(name: "fnval", value: String(fnval)),
+                URLQueryItem(name: "fnver", value: "0"), URLQueryItem(name: "fourk", value: "1"),
+                URLQueryItem(name: "platform", value: platform), URLQueryItem(name: "high_quality", value: String(highQuality)),
             ]
         case .videoDetail(let bvid):
             return [URLQueryItem(name: "bvid", value: bvid)]

@@ -220,17 +220,7 @@ struct SpaceData: Codable {
     enum CodingKeys: String, CodingKey { case mid, name, sex, face, sign, level, fans, friend, attention }
 }
 
-// MARK: - 热门
-struct PopularData: Codable {
-    let list: [VideoItem]?
-    let num: Int?
-    enum CodingKeys: String, CodingKey { case list, num }
-}
-
-struct DynamicRegionData: Codable {
-    let archives: [VideoItem]?
-    enum CodingKeys: String, CodingKey { case archives }
-}
+// PopularData, DynamicRegionData 已移至 VideoRepository.swift
 
 // MARK: - 搜索
 struct SearchResponse: Codable {
