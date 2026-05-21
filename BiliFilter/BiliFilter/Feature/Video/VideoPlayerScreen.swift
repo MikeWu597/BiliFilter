@@ -29,27 +29,12 @@ struct VideoPlayerScreen: View {
                     if viewModel.playerState == .loading {
                         ProgressView().tint(.white).scaleEffect(1.5)
                     }
-                    if viewModel.showControls {
-                        HStack(spacing: 40) {
-                            Button { viewModel.seekBackward() } label: {
-                                Image(systemName: "gobackward.10").font(.title).foregroundColor(.white)
-                            }
-                            Button { viewModel.togglePlay() } label: {
-                                Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                    .font(.system(size: 56)).foregroundColor(.white)
-                            }
-                            Button { viewModel.seekForward() } label: {
-                                Image(systemName: "goforward.10").font(.title).foregroundColor(.white)
-                            }
-                        }
-                    }
                 }
                 .frame(width: geo.size.width, height: geo.size.width * 9/16)
                 .overlay(alignment: .top) { if viewModel.showControls { topControls } }
                 .overlay(alignment: .bottom) { if viewModel.showControls { bottomControls } }
-                .onTapGesture { toggleControls() }
-                .gesture(volumeBrightnessGesture(in: geo))
                 .frame(width: geo.size.width, height: geo.size.width * 9/16)
+                .onTapGesture(count: 2) { viewModel.togglePlay() }
                 .onTapGesture { toggleControls() }
                 .gesture(volumeBrightnessGesture(in: geo))
 
@@ -87,22 +72,25 @@ struct VideoPlayerScreen: View {
                     .padding(10).background(Circle().fill(.ultraThinMaterial))
             }
         }
-        .padding(.horizontal, 12).padding(.top, 48)
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 40)
+        .background(LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom))
     }
 
     private var bottomControls: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 12) {
             Slider(value: $viewModel.currentTime, in: 0...max(viewModel.duration, 1)) { editing in
                 if !editing { viewModel.seek(to: viewModel.currentTime) }
-            }.tint(.white).padding(.horizontal, 8)
+            }.tint(.white).padding(.horizontal, 16)
 
             HStack {
-                Text(formatTime(viewModel.currentTime)).font(.caption).foregroundColor(.white)
+                Text(formatTime(viewModel.currentTime)).font(.caption2).foregroundColor(.white)
                 Spacer()
-                Text(formatTime(viewModel.duration)).font(.caption).foregroundColor(.white.opacity(0.6))
-            }.padding(.horizontal, 12)
+                Text(formatTime(viewModel.duration)).font(.caption2).foregroundColor(.white.opacity(0.6))
+            }.padding(.horizontal, 16)
 
-            HStack {
+            HStack(spacing: 16) {
                 Button { showPageSelector = true } label: {
                     Image(systemName: "list.number").font(.body).foregroundColor(.white)
                 }
@@ -110,21 +98,22 @@ struct VideoPlayerScreen: View {
                 Button { showSpeedMenu = true } label: {
                     Text("\(String(format: "%.1f", viewModel.playbackSpeed))x")
                         .font(.caption).foregroundColor(.white)
-                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(.ultraThinMaterial).cornerRadius(4)
                 }
                 Button { showQualityMenu = true } label: {
                     Text("画质").font(.caption).foregroundColor(.white)
-                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(.ultraThinMaterial).cornerRadius(4)
                 }
                 Button { viewModel.toggleFullscreen() } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .font(.body).foregroundColor(.white)
                 }
-            }.padding(.horizontal, 12)
+            }.padding(.horizontal, 16)
         }
-        .padding(.bottom, 32)
+        .padding(.top, 40)
+        .padding(.bottom, 12)
         .background(LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom))
     }
 
