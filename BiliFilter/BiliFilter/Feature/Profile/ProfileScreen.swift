@@ -8,13 +8,12 @@ struct ProfileScreen: View {
     var body: some View {
         NavigationStack {
             List {
-                // 用户头部
                 Section {
                     HStack(spacing: 14) {
                         BiliAvatar(url: viewModel.face, size: 60)
                         VStack(alignment: .leading, spacing: 4) {
                             if viewModel.isLoggedIn {
-                                Text(viewModel.userName)
+                                Text(viewModel.userName.isEmpty ? "用户\(viewModel.mid)" : viewModel.userName)
                                     .font(.title3).fontWeight(.semibold)
                                 if let level = viewModel.level {
                                     Text("LV\(level)")
@@ -30,8 +29,10 @@ struct ProfileScreen: View {
                             }
                         }
                         Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption).foregroundColor(Color(.systemGray3))
+                        if viewModel.isLoggedIn {
+                            Image(systemName: "chevron.right")
+                                .font(.caption).foregroundColor(Color(.systemGray3))
+                        }
                     }
                     .padding(.vertical, 4)
                 }
@@ -39,6 +40,9 @@ struct ProfileScreen: View {
             .navigationTitle("我的")
         }
         .task { await viewModel.loadProfile() }
+        .onReceive(TokenManager.shared.$isLoggedIn) { loggedIn in
+            if loggedIn { Task { await viewModel.loadProfile() } }
+        }
     }
 }
 
@@ -48,18 +52,37 @@ final class ProfileViewModel: ObservableObject {
     @Published var userName = ""
     @Published var face = ""
     @Published var level: Int?
+    @Published var mid: Int64 = 0
 
     func loadProfile() async {
         isLoggedIn = TokenManager.shared.isLoggedIn
+        mid = TokenManager.shared.mid
+        let sess = TokenManager.shared.sessdata ?? "nil"
+        print("[Profile] loadProfile isLoggedIn=\(isLoggedIn) mid=\(mid) sessdata=\(sess.prefix(10))...")
         guard isLoggedIn else { return }
         do {
-            let response: BiliApiResponse<NavData> = try await ApiClient.shared.request(.navInfo)
-            if response.isSuccess, let data = response.data {
-                userName = data.uname ?? ""
-                face = data.face ?? ""
-                level = data.level_info?.current_level
+            var req = URLRequest(url: URL(string: "https://api.bilibili.com/x/web-interface/nav")!)
+            req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", forHTTPHeaderField: "User-Agent")
+            req.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+            if let s = TokenManager.shared.sessdata, !s.isEmpty {
+                req.setValue("SESSDATA=\(s); buvid3=\(TokenManager.shared.buvid3)", forHTTPHeaderField: "Cookie")
             }
-        } catch {}
+            let (data, _) = try await URLSession.shared.data(for: req)
+            // 用JSONSerialization手动解析，避开Codable的类型严格校验
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let dataDict = json["data"] as? [String: Any] {
+                userName = dataDict["uname"] as? String ?? ""
+                face = (dataDict["face"] as? String) ?? ""
+                if let li = dataDict["level_info"] as? [String: Any] {
+                    level = li["current_level"] as? Int
+                }
+                print("[Profile] JSON parsed: uname='\(userName)' face='\(face.prefix(30))...' level=\(level ?? -1)")
+            } else {
+                print("[Profile] JSON parse failed")
+            }
+        } catch {
+            print("[Profile] navInfo error: \(error)")
+        }
     }
 }
 

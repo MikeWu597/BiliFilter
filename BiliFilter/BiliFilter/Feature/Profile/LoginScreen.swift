@@ -91,20 +91,28 @@ struct QRCodePollData: Codable {
 
 struct QRCodeView: View {
     let url: String
-    @State private var image: UIImage?
 
     var body: some View {
-        Group {
-            if let image = image {
-                Image(uiImage: image)
-                    .resizable().interpolation(.none).scaledToFit()
-                    .frame(width: 200, height: 200).padding(16)
-                    .background(Color.white).cornerRadius(12)
-            } else {
-                ProgressView().frame(width: 200, height: 200)
-            }
+        if let img = generateQRCode(from: url) {
+            Image(uiImage: img)
+                .resizable().interpolation(.none).scaledToFit()
+                .frame(width: 200, height: 200).padding(16)
+                .background(Color.white).cornerRadius(12)
+        } else {
+            ProgressView().frame(width: 200, height: 200)
         }
-        .task { image = await BiliImageLoader.shared.load(url) }
+    }
+
+    private func generateQRCode(from string: String) -> UIImage? {
+        guard let data = string.data(using: .utf8) else { return nil }
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("H", forKey: "inputCorrectionLevel")
+        guard let output = filter.outputImage else { return nil }
+        let scaled = output.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let ctx = CIContext()
+        guard let cg = ctx.createCGImage(scaled, from: scaled.extent) else { return nil }
+        return UIImage(cgImage: cg)
     }
 }
 #Preview { LoginScreen() }

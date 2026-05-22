@@ -132,12 +132,6 @@ struct VideoPlayerScreen: View {
                                 }.font(.caption).foregroundColor(.secondary)
                             }
                         }
-                        Spacer()
-                        Button {} label: {
-                            Text("+ 关注").font(.caption).fontWeight(.medium)
-                                .padding(.horizontal, 16).padding(.vertical, 6)
-                                .background(themeManager.accentColor).foregroundColor(.white).cornerRadius(14)
-                        }
                     }.padding(.horizontal, 16)
                     if let desc = info.desc, !desc.isEmpty {
                         Text(desc).font(.subheadline).foregroundColor(.secondary).lineLimit(3).padding(.horizontal, 16)
