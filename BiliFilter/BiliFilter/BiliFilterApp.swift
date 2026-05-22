@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct BiliFilterApp: App {
     @StateObject private var themeManager = ThemeManager.shared
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
         WindowGroup {
@@ -15,5 +16,14 @@ struct BiliFilterApp: App {
                     themeManager.loadFromStorage()
                 }
         }
+    }
+}
+
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    static var isFullscreen = false
+
+    func application(_ application: UIApplication,
+                     supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        return AppDelegate.isFullscreen ? .allButUpsideDown : .portrait
     }
 }

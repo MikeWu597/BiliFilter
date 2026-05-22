@@ -15,9 +15,29 @@ struct VideoPlayerScreen: View {
     }
 
     var body: some View {
+        Group {
+            if viewModel.isFullscreen {
+                fullscreenPlayer
+                    .toolbar(.hidden, for: .tabBar)
+            } else {
+                normalPlayer
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .enableSwipeBack()
+        .statusBarHidden(viewModel.isFullscreen)
+        .task { await viewModel.loadVideo() }
+        .onDisappear { viewModel.cleanup() }
+        .sheet(isPresented: $showQualityMenu) { qualityMenu }
+        .sheet(isPresented: $showSpeedMenu) { speedMenu }
+        .sheet(isPresented: $showDanmakuSettings) { danmakuSettings }
+        .sheet(isPresented: $showPageSelector) { pageSelector }
+    }
+
+    private var normalPlayer: some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
-                // 播放器区域
                 ZStack {
                     Color.black
                     if let player = viewModel.player {
@@ -31,26 +51,50 @@ struct VideoPlayerScreen: View {
                 .frame(width: geo.size.width, height: geo.size.width * 9/16)
                 .overlay(alignment: .top) { if viewModel.showControls { topControls } }
                 .overlay(alignment: .bottom) { if viewModel.showControls { bottomControls } }
-                .frame(width: geo.size.width, height: geo.size.width * 9/16)
                 .onTapGesture(count: 2) { viewModel.togglePlay() }
                 .onTapGesture { toggleControls() }
                 .gesture(volumeBrightnessGesture(in: geo))
 
-                // 视频信息
                 videoInfoSection
             }
             .background(themeManager.backgroundColor)
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .enableSwipeBack()
-        .statusBarHidden(viewModel.isFullscreen)
-        .task { await viewModel.loadVideo() }
-        .onDisappear { viewModel.cleanup() }
-        .sheet(isPresented: $showQualityMenu) { qualityMenu }
-        .sheet(isPresented: $showSpeedMenu) { speedMenu }
-        .sheet(isPresented: $showDanmakuSettings) { danmakuSettings }
-        .sheet(isPresented: $showPageSelector) { pageSelector }
+    }
+
+    private var fullscreenPlayer: some View {
+        GeometryReader { geo in
+            ZStack {
+                Color.black
+                if let player = viewModel.player {
+                    VideoPlayerLayer(player: player)
+                }
+                DanmakuRenderer(items: viewModel.danmakuItems, currentTime: viewModel.currentTime, alpha: viewModel.danmakuAlpha, fontScale: viewModel.danmakuFontScale, isEnabled: viewModel.danmakuEnabled, isPlaying: viewModel.isPlaying)
+                if viewModel.playerState == .loading {
+                    ProgressView().tint(.white).scaleEffect(1.5)
+                }
+
+                if viewModel.showControls {
+                    VStack {
+                        HStack {
+                            Button { viewModel.exitFullscreen() } label: {
+                                Image(systemName: "arrow.down.right.and.arrow.up.left")
+                                    .font(.title3).foregroundColor(.white)
+                                    .padding(10).background(Circle().fill(.ultraThinMaterial))
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12).padding(.top, 48)
+                        Spacer()
+                        bottomControls
+                    }
+                }
+            }
+            .onTapGesture(count: 2) { viewModel.togglePlay() }
+            .onTapGesture { viewModel.showControls.toggle() }
+            .gesture(volumeBrightnessGesture(in: geo))
+        }
+        .ignoresSafeArea()
+        .background(Color.black.ignoresSafeArea())
     }
 
     private var topControls: some View {

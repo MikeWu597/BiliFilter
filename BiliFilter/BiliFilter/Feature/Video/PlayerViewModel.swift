@@ -243,7 +243,24 @@ final class PlayerViewModel: ObservableObject {
     func setSpeed(_ s: Float) { playbackSpeed = s; player?.rate = s }
     func setVolume(_ v: Float) { volume = v; player?.volume = v }
     func setBrightness(_ b: CGFloat) { brightness = b; UIScreen.main.brightness = b }
-    func toggleFullscreen() { isFullscreen.toggle() }
+    func toggleFullscreen() {
+        isFullscreen.toggle()
+        AppDelegate.isFullscreen = isFullscreen
+        if isFullscreen {
+            UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
+        } else {
+            UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+        }
+        UIViewController.attemptRotationToDeviceOrientation()
+    }
+
+    func exitFullscreen() {
+        guard isFullscreen else { return }
+        isFullscreen = false
+        AppDelegate.isFullscreen = false
+        UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+        UIViewController.attemptRotationToDeviceOrientation()
+    }
     func setQuality(_ qn: Int) { currentQuality = qn; Task { await loadVideo() } }
     func switchPage(_ i: Int) {
         guard i < pages.count else { return }
