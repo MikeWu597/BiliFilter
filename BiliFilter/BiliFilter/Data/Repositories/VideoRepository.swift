@@ -12,14 +12,17 @@ actor VideoRepository {
 
     // MARK: - 首页推荐
 
-    func fetchRecommendFeed() async throws -> [RecommendItem] {
+    func fetchRecommendFeed(freshIdx: Int = 1) async throws -> [RecommendItem] {
         let (imgKey, subKey) = try await getWbiKeys()
+        let idx = String(freshIdx)
         let params: [String: String] = [
-            "ps": "30", "fresh_type": "3", "fresh_idx": "1",
-            "fresh_idx_1h": "1", "brush": "0", "feed_version": String(Int64(Date().timeIntervalSince1970 * 1000)), "y_num": "1"
+            "ps": "30", "fresh_type": "3", "fresh_idx": idx,
+            "fresh_idx_1h": idx, "brush": idx, "feed_version": String(Int64(Date().timeIntervalSince1970 * 1000)), "y_num": "1"
         ]
         let signedParams = WbiSign.sign(params: params, imgKey: imgKey, subKey: subKey)
+        print("[Feed] fetch freshIdx=\(freshIdx) params=\(signedParams)")
         let response: BiliApiResponse<RecommendData> = try await api.request(.recommendFeed(params: signedParams), needsWbi: false)
+        print("[Feed] code=\(response.code) itemCount=\(response.data?.item?.count ?? 0)")
         guard response.isSuccess, let data = response.data else {
             throw ApiError.biliError(code: response.code, message: response.message)
         }

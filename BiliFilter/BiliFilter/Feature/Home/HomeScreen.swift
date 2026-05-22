@@ -34,7 +34,7 @@ struct HomeScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .refreshable { await viewModel.refreshFeed() }
+        .refreshable { viewModel.refreshFeed() }
     }
 }
 
