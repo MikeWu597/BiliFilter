@@ -42,6 +42,7 @@ enum BiliAPI {
     case relatedVideos(bvid: String)
     case danmakuXml(cid: Int64)
     case danmakuProto(cid: Int64, segmentIndex: Int)
+    case danmakuView(oid: Int64, pid: Int64)
 
     // MARK: 评论
     case replyList(oid: Int64, type: Int, sort: Int, pn: Int, ps: Int)
@@ -141,6 +142,7 @@ extension BiliAPI {
         case .relatedVideos: return "/x/web-interface/archive/related"
         case .danmakuXml: return "/x/v1/dm/list.so"
         case .danmakuProto: return "/x/v2/dm/web/seg.so"
+        case .danmakuView: return "/x/v2/dm/web/view"
         case .replyList: return "/x/v2/reply/wbi/main"
         case .replyReply: return "/x/v2/reply/reply"
         case .emotes: return "/x/web-interface/emote/list"
@@ -215,6 +217,8 @@ extension BiliAPI {
             return [URLQueryItem(name: "oid", value: String(cid))]
         case .danmakuProto(let cid, let segmentIndex):
             return [URLQueryItem(name: "oid", value: String(cid)), URLQueryItem(name: "segment_index", value: String(segmentIndex))]
+        case .danmakuView(let oid, let pid):
+            return [URLQueryItem(name: "oid", value: String(oid)), URLQueryItem(name: "pid", value: String(pid))]
         case .replyList(let oid, let type, let sort, let pn, let ps):
             return [
                 URLQueryItem(name: "oid", value: String(oid)), URLQueryItem(name: "type", value: String(type)),

@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import Combine
+import Compression
 
 enum PlayerState: Equatable {
     case idle, loading, ready, playing, paused, buffering
@@ -27,6 +28,7 @@ final class PlayerViewModel: ObservableObject {
     @Published var pages: [PageItem] = []
     @Published var availableQualities: [Int] = []
     @Published var currentPage: Int = 0
+    @Published var danmakuItems: [DanmakuItem] = []
     @Published var errorMessage: String?
 
     var player: AVPlayer?
@@ -71,12 +73,15 @@ final class PlayerViewModel: ObservableObject {
         }
         videoInfo = info
         pages = info.pages ?? []
-        let cid = cid > 0 ? cid : (info.cid ?? 0)
-        print("[Player] videoInfo ok, title=\(info.title ?? "?"), cid=\(cid)")
+        let realCid = cid > 0 ? cid : (info.cid ?? 0)
+        print("[Player] videoInfo ok, title=\(info.title ?? "?"), cid=\(realCid)")
+
+        // 加载弹幕
+        Task { await loadDanmaku(cid: realCid) }
 
         // 2. 获取播放地址
         do {
-            guard let data = try await repo.fetchPlayUrl(bvid: bvid, cid: cid, qn: currentQuality) else {
+            guard let data = try await repo.fetchPlayUrl(bvid: bvid, cid: realCid, qn: currentQuality) else {
                 print("[Player] fetchPlayUrl returned nil")
                 playerState = .error("获取播放地址失败")
                 return
@@ -229,6 +234,57 @@ final class PlayerViewModel: ObservableObject {
         guard i < pages.count else { return }
         currentPage = i; Task { await loadVideo() }
     }
+    private func loadDanmaku(cid: Int64) async {
+        guard cid > 0 else { return }
+        do {
+            let data = try await fetchDanmakuRaw(cid: cid)
+            if let xml = String(data: data, encoding: .utf8) {
+                danmakuItems = DanmakuParser.parse(xml: xml)
+            } else if data.count > 0 {
+                danmakuItems = DanmakuParser.parseProto(data: data)
+            }
+            print("[Player] loaded \(danmakuItems.count) danmaku items")
+        } catch {
+            print("[Player] danmaku error: \(error)")
+        }
+    }
+
+    private func fetchDanmakuRaw(cid: Int64) async throws -> Data {
+        let urlStr = "https://api.bilibili.com/x/v1/dm/list.so?oid=\(cid)"
+        guard let url = URL(string: urlStr) else { throw ApiError.invalidURL }
+        var req = URLRequest(url: url)
+        req.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        req.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+        let (data, _) = try await URLSession.shared.data(for: req)
+
+        // 检查是否需要解压
+        if let firstByte = data.first, firstByte != 0x3C { // 不以 '<' 开头 = 压缩数据
+            var stream = InputStream(data: data)
+            // 跳过可能的前导字节
+            return try decompressDeflate(data)
+        }
+        return data
+    }
+
+    private func decompressDeflate(_ data: Data) throws -> Data {
+        // 跳过zlib头(2字节CMF+FLG), 处理raw deflate
+        let src = data.count > 2 ? data.subdata(in: 2..<data.count) : data
+        let bufferSize = src.count * 5
+        var result = Data(count: bufferSize)
+        let actualSize = result.withUnsafeMutableBytes { dest in
+            src.withUnsafeBytes { source in
+                compression_decode_buffer(
+                    dest.baseAddress!.assumingMemoryBound(to: UInt8.self), bufferSize,
+                    source.baseAddress!.assumingMemoryBound(to: UInt8.self), src.count,
+                    nil, COMPRESSION_ZLIB
+                )
+            }
+        }
+        guard actualSize > 0 else { return data } // 解压失败返回原始数据
+        result.count = actualSize
+        return result
+    }
+
     func cleanup() {
         player?.pause(); statusObserver?.invalidate()
         if let o = timeObserver { player?.removeTimeObserver(o) }

@@ -23,9 +23,7 @@ struct VideoPlayerScreen: View {
                     if let player = viewModel.player {
                         VideoPlayerLayer(player: player)
                     }
-                    if viewModel.danmakuEnabled {
-                        DanmakuOverlay(currentTime: viewModel.currentTime, alpha: viewModel.danmakuAlpha, fontScale: viewModel.danmakuFontScale)
-                    }
+                    DanmakuRenderer(items: viewModel.danmakuItems, currentTime: viewModel.currentTime, alpha: viewModel.danmakuAlpha, fontScale: viewModel.danmakuFontScale, isEnabled: viewModel.danmakuEnabled, isPlaying: viewModel.isPlaying)
                     if viewModel.playerState == .loading {
                         ProgressView().tint(.white).scaleEffect(1.5)
                     }
@@ -236,10 +234,6 @@ struct VideoPlayerScreen: View {
     }
 }
 
-struct DanmakuOverlay: View {
-    let currentTime: Double; let alpha: Double; let fontScale: Double
-    var body: some View { Color.clear }
-}
 #Preview {
     NavigationStack { VideoPlayerScreen(bvid: "BV1xx411c7mD").environmentObject(ThemeManager.shared) }
 }
