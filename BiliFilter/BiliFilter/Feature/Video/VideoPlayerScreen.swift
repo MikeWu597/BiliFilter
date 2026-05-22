@@ -117,7 +117,7 @@ struct VideoPlayerScreen: View {
 
     private var videoInfoSection: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            LazyVStack(alignment: .leading, spacing: 12, pinnedViews: []) {
                 if let info = viewModel.videoInfo {
                     Text(info.title ?? "").font(.headline).padding(.horizontal, 16).padding(.top, 12)
                     HStack {
@@ -149,8 +149,65 @@ struct VideoPlayerScreen: View {
                         VideoCardView(coverUrl: video.pic, title: video.title, upName: video.owner?.name ?? "", playCount: video.stat?.viewCount ?? 0, danmakuCount: video.stat?.danmakuCount ?? 0, duration: video.duration, bvid: video.bvid, cid: video.cid).padding(.horizontal, 16)
                     }
                 }
+                // 评论区
+                replyHeader
+
+                if viewModel.isLoadingReplies && viewModel.replyItems.isEmpty {
+                    HStack { Spacer(); ProgressView().tint(themeManager.accentColor); Spacer() }
+                        .padding(.vertical, 24)
+                } else if let err = viewModel.replyErrorMessage, viewModel.replyItems.isEmpty {
+                    Button { Task { await viewModel.loadReplies() } } label: {
+                        Label(err, systemImage: "arrow.clockwise")
+                            .font(.caption).foregroundColor(.secondary)
+                    }.padding(.vertical, 24).frame(maxWidth: .infinity)
+                }
+
+                ForEach(Array(viewModel.replyItems.enumerated()), id: \.element.id) { idx, reply in
+                    let subs = viewModel.expandedReplies[reply.rpid]
+                    ReplyRow(
+                        reply: reply,
+                        subReplies: subs,
+                        isLoadingSub: viewModel.loadingSubReplies.contains(reply.rpid),
+                        onToggle: { viewModel.toggleSubReplies(for: reply.rpid) }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    Divider().padding(.leading, 56)
+                }
+
+                // 底部加载更多：用id确保每次新评论追加后onAppear重新触发
+                if viewModel.hasMoreReplies {
+                    Color.clear
+                        .frame(height: 60)
+                        .id("replyLoader-\(viewModel.replyItems.count)")
+                        .onAppear {
+                            print("[Reply] sentinel APPEAR count=\(viewModel.replyItems.count) hasMore=\(viewModel.hasMoreReplies) loading=\(viewModel.isLoadingReplies)")
+                            if !viewModel.isLoadingReplies {
+                                Task { await viewModel.loadMoreReplies() }
+                            }
+                        }
+                }
+
+                if viewModel.isLoadingReplies && !viewModel.replyItems.isEmpty {
+                    HStack { Spacer(); ProgressView().scaleEffect(0.8); Spacer() }
+                        .padding(.vertical, 12)
+                }
             }.padding(.bottom, 32)
         }
+    }
+
+
+
+    private var replyHeader: some View {
+        let totalCount = viewModel.videoInfo?.stat?.replyCount ?? viewModel.replyItems.count
+        return HStack {
+            Text("评论 \(totalCount > 0 ? formatCount(totalCount) : "")")
+                .font(.headline)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
     }
 
     private func volumeBrightnessGesture(in geo: GeometryProxy) -> some Gesture {
@@ -233,6 +290,122 @@ struct VideoPlayerScreen: View {
         }
     }
 }
+
+// MARK: - 评论行
+struct ReplyRow: View {
+    let reply: ReplyItem
+    var subReplies: [ReplyItem]? = nil
+    var isLoadingSub: Bool = false
+    var onToggle: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 10) {
+                AsyncImage(url: URL(string: reply.member.avatarUrl)) { img in
+                    img.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Color.gray.opacity(0.2)
+                }
+                .frame(width: 34, height: 34)
+                .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(reply.member.uname)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                        if let level = reply.member.levelInfo?.currentLevel, level > 0 {
+                            Text("Lv\(level)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.orange)
+                                .cornerRadius(3)
+                        }
+                        Spacer()
+                        Text(reply.timeAgo)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    Text(reply.content.message)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                        .lineLimit(6)
+                    HStack(spacing: 16) {
+                        if let loc = reply.replyControl?.location, !loc.isEmpty {
+                            Text(loc)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        Label("\(reply.likeCount)", systemImage: "hand.thumbsup")
+                            .font(.caption2).foregroundColor(.secondary)
+                        if reply.replyCount > 0 {
+                            Button { onToggle?() } label: {
+                                Label("\(reply.replyCount)", systemImage: "text.bubble")
+                                    .font(.caption2)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 内嵌子回复预览（来自API返回的replies字段）
+            if let embedded = reply.replies, !embedded.isEmpty, subReplies == nil {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(embedded.prefix(3)) { sub in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text(sub.member.uname)
+                                .font(.caption).foregroundColor(.accentColor)
+                            + Text("：\(sub.content.message)")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                        .lineLimit(1)
+                        .padding(.leading, 44)
+                    }
+                    if reply.replyCount > 3 {
+                        Button { onToggle?() } label: {
+                            Text("查看全部\(reply.replyCount)条回复")
+                                .font(.caption).foregroundColor(.accentColor)
+                        }
+                        .padding(.leading, 44)
+                        .padding(.top, 2)
+                    }
+                }
+                .padding(.top, 4)
+            }
+
+            // 展开加载的完整子回复
+            if let subs = subReplies {
+                if isLoadingSub {
+                    HStack { Spacer(); ProgressView().scaleEffect(0.7); Spacer() }
+                        .padding(.vertical, 4).padding(.leading, 44)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(subs) { sub in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text(sub.member.uname)
+                                .font(.caption).foregroundColor(.accentColor)
+                            + Text("：\(sub.content.message)")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                        .lineLimit(3)
+                        .padding(.leading, 44)
+                    }
+                }
+                .padding(.top, 4)
+                Button { onToggle?() } label: {
+                    Text("收起回复")
+                        .font(.caption).foregroundColor(.accentColor)
+                }
+                .padding(.leading, 44)
+                .padding(.top, 2)
+            }
+        }
+    }
+}
+
 
 #Preview {
     NavigationStack { VideoPlayerScreen(bvid: "BV1xx411c7mD").environmentObject(ThemeManager.shared) }

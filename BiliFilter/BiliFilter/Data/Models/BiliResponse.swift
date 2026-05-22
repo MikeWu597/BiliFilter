@@ -220,6 +220,109 @@ struct SpaceData: Codable {
     enum CodingKeys: String, CodingKey { case mid, name, sex, face, sign, level, fans, friend, attention }
 }
 
+// MARK: - 评论/回复模型
+struct ReplyResponse: Codable {
+    let code: Int
+    let message: String
+    let data: ReplyData?
+}
+
+struct ReplyData: Codable {
+    let cursor: ReplyCursor?
+    let replies: [ReplyItem]?
+    let topReplies: [ReplyItem]?
+    let upper: ReplyUpper?
+
+    enum CodingKeys: String, CodingKey {
+        case cursor, replies
+        case topReplies = "top_replies"
+        case upper
+    }
+}
+
+struct ReplyCursor: Codable {
+    let allCount: Int?
+    let isEnd: Bool
+    let next: Int
+    let prev: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case allCount = "all_count"
+        case isEnd = "is_end"
+        case next
+        case prev
+    }
+}
+
+struct ReplyItem: Codable, Identifiable {
+    let rpid: Int64
+    let oid: Int64
+    let mid: Int64
+    let count: Int
+    let like: Int
+    let ctime: Int64
+    let member: ReplyMember
+    let content: ReplyContent
+    let replies: [ReplyItem]?
+    let replyControl: ReplyControl?
+
+    var id: Int64 { rpid }
+    var replyCount: Int { count }
+    var likeCount: Int { like }
+    var timeAgo: String { formatReplyTime(ctime) }
+
+    enum CodingKeys: String, CodingKey {
+        case rpid, oid, mid, count, like, ctime
+        case member, content, replies
+        case replyControl = "reply_control"
+    }
+}
+
+struct ReplyMember: Codable {
+    let mid: String
+    let uname: String
+    let avatar: String
+    let levelInfo: ReplyLevelInfo?
+
+    var avatarUrl: String { avatar.replacingOccurrences(of: "http://", with: "https://") }
+
+    enum CodingKeys: String, CodingKey {
+        case mid, uname, avatar
+        case levelInfo = "level_info"
+    }
+}
+
+struct ReplyLevelInfo: Codable {
+    let currentLevel: Int
+    enum CodingKeys: String, CodingKey { case currentLevel = "current_level" }
+}
+
+struct ReplyContent: Codable {
+    let message: String
+}
+
+struct ReplyControl: Codable {
+    let location: String?
+}
+
+struct ReplyUpper: Codable {
+    let mid: Int64
+    let top: ReplyItem?
+}
+
+private func formatReplyTime(_ timestamp: Int64) -> String {
+    let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+    let now = Date()
+    let diff = now.timeIntervalSince(date)
+    if diff < 60 { return "刚刚" }
+    if diff < 3600 { return "\(Int(diff/60))分钟前" }
+    if diff < 86400 { return "\(Int(diff/3600))小时前" }
+    if diff < 2592000 { return "\(Int(diff/86400))天前" }
+    let fmt = DateFormatter()
+    fmt.dateFormat = "MM-dd"
+    return fmt.string(from: date)
+}
+
 // PopularData, DynamicRegionData 已移至 VideoRepository.swift
 
 // MARK: - 搜索

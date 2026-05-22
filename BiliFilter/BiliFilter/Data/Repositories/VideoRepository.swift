@@ -116,6 +116,28 @@ actor VideoRepository {
         guard r.isSuccess else { throw ApiError.biliError(code: r.code, message: r.message) }
         return r.data
     }
+
+    // MARK: - 评论
+
+    func fetchReplies(oid: Int64, mode: Int = 2, pn: Int = 1, ps: Int = 20, next: Int? = nil) async throws -> ReplyData? {
+        let endpoint = BiliAPI.replyList(oid: oid, type: 1, mode: mode, pn: pn, ps: ps, next: next)
+        print("[Reply] fetchReplies pn=\(pn) next=\(next.map(String.init) ?? "nil") url=\(endpoint.url?.absoluteString ?? "nil")")
+        let resp: BiliApiResponse<ReplyData> = try await api.request(
+            endpoint,
+            needsWbi: true
+        )
+        guard resp.isSuccess else { throw ApiError.biliError(code: resp.code, message: resp.message) }
+        return resp.data
+    }
+
+    func fetchSubReplies(oid: Int64, rootRpid: Int64, pn: Int = 1, ps: Int = 20) async throws -> ReplyData? {
+        let resp: BiliApiResponse<ReplyData> = try await api.request(
+            .replyReply(rootRpid: rootRpid, oid: oid, type: 1, pn: pn, ps: ps),
+            needsWbi: true
+        )
+        guard resp.isSuccess else { throw ApiError.biliError(code: resp.code, message: resp.message) }
+        return resp.data
+    }
 }
 
 struct DynamicRegionData: Codable { let archives: [VideoItem]? }

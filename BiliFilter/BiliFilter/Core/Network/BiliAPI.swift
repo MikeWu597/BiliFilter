@@ -45,7 +45,7 @@ enum BiliAPI {
     case danmakuView(oid: Int64, pid: Int64)
 
     // MARK: 评论
-    case replyList(oid: Int64, type: Int, sort: Int, pn: Int, ps: Int)
+    case replyList(oid: Int64, type: Int, mode: Int, pn: Int, ps: Int, next: Int? = nil)
     case replyReply(rootRpid: Int64, oid: Int64, type: Int, pn: Int, ps: Int)
     case emotes
 
@@ -219,12 +219,15 @@ extension BiliAPI {
             return [URLQueryItem(name: "oid", value: String(cid)), URLQueryItem(name: "segment_index", value: String(segmentIndex))]
         case .danmakuView(let oid, let pid):
             return [URLQueryItem(name: "oid", value: String(oid)), URLQueryItem(name: "pid", value: String(pid))]
-        case .replyList(let oid, let type, let sort, let pn, let ps):
-            return [
+        case .replyList(let oid, let type, let mode, let pn, let ps, let next):
+            var items = [
                 URLQueryItem(name: "oid", value: String(oid)), URLQueryItem(name: "type", value: String(type)),
-                URLQueryItem(name: "sort", value: String(sort)), URLQueryItem(name: "pn", value: String(pn)),
-                URLQueryItem(name: "ps", value: String(ps)),
+                URLQueryItem(name: "mode", value: String(mode)),
             ]
+            if let next { items.append(URLQueryItem(name: "next", value: String(next))) }
+            else { items.append(URLQueryItem(name: "pn", value: String(pn))) }
+            items.append(URLQueryItem(name: "ps", value: String(ps)))
+            return items
         case .replyReply(let rootRpid, let oid, let type, let pn, let ps):
             return [
                 URLQueryItem(name: "root", value: String(rootRpid)), URLQueryItem(name: "oid", value: String(oid)),

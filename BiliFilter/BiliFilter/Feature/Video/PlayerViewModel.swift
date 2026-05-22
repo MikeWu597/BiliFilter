@@ -29,7 +29,20 @@ final class PlayerViewModel: ObservableObject {
     @Published var availableQualities: [Int] = []
     @Published var currentPage: Int = 0
     @Published var danmakuItems: [DanmakuItem] = []
+    @Published var replyItems: [ReplyItem] = []
+    @Published var isLoadingReplies = false
+    @Published var replyErrorMessage: String?
     @Published var errorMessage: String?
+    // 子回复（楼中楼）
+    @Published var expandedReplies: [Int64: [ReplyItem]] = [:]
+    @Published var loadingSubReplies: Set<Int64> = []
+
+    private var replyCursor: ReplyCursor?
+    private var replyPage = 1
+    var hasMoreReplies: Bool {
+        guard let cursor = replyCursor else { return false }
+        return cursor.next > 0 && replyPage < 50
+    }
 
     var player: AVPlayer?
     private var timeObserver: Any?
@@ -78,6 +91,8 @@ final class PlayerViewModel: ObservableObject {
 
         // 加载弹幕
         Task { await loadDanmaku(cid: realCid) }
+        // 加载评论
+        Task { await loadReplies() }
 
         // 2. 获取播放地址
         do {
@@ -247,6 +262,75 @@ final class PlayerViewModel: ObservableObject {
         } catch {
             print("[Player] danmaku error: \(error)")
         }
+    }
+
+    func loadReplies() async {
+        let oid = videoInfo?.aid ?? aid
+        guard oid > 0, !isLoadingReplies else { return }
+        isLoadingReplies = true
+        replyErrorMessage = nil
+        do {
+        replyPage = 1
+            let data = try await repo.fetchReplies(oid: oid, pn: replyPage)
+            replyItems = data?.replies ?? []
+            replyCursor = data?.cursor
+            print("[Reply] INIT page=\(replyPage) loaded=\(replyItems.count) allCount=\(data?.cursor?.allCount ?? -1) isEnd=\(data?.cursor?.isEnd) next=\(data?.cursor?.next)")
+        } catch {
+            replyErrorMessage = error.localizedDescription
+            print("[Player] reply error: \(error)")
+        }
+        isLoadingReplies = false
+    }
+
+    func loadMoreReplies() async {
+        guard hasMoreReplies, !isLoadingReplies else {
+            print("[Reply] loadMoreReplies SKIP hasMore=\(hasMoreReplies) loading=\(isLoadingReplies)")
+            return
+        }
+        let oid = videoInfo?.aid ?? aid
+        guard oid > 0 else { return }
+        isLoadingReplies = true
+        do {
+        replyPage += 1
+            print("[Reply] loadMoreReplies START page=\(replyPage) currentCount=\(replyItems.count)")
+            let data = try await repo.fetchReplies(oid: oid, pn: replyPage)
+            let newItems = data?.replies ?? []
+            let existingIds = Set(replyItems.map(\.rpid))
+            let uniqueItems = newItems.filter { !existingIds.contains($0.rpid) }
+            if uniqueItems.isEmpty {
+                replyCursor = nil
+                print("[Reply] loadMoreReplies STOP: all \(newItems.count) items already loaded")
+            } else {
+                replyItems.append(contentsOf: uniqueItems)
+                replyCursor = data?.cursor
+                print("[Reply] loadMoreReplies DONE page=\(replyPage) got=\(uniqueItems.count) new, \(newItems.count - uniqueItems.count) dup, total=\(replyItems.count) isEnd=\(data?.cursor?.isEnd) next=\(data?.cursor?.next)")
+            }
+        } catch {
+            print("[Reply] loadMoreReplies ERROR: \(error)")
+        }
+        isLoadingReplies = false
+    }
+
+    func toggleSubReplies(for rpid: Int64) {
+        if expandedReplies[rpid] != nil {
+            expandedReplies[rpid] = nil
+        } else {
+            Task { await loadSubReplies(for: rpid) }
+        }
+    }
+
+    private func loadSubReplies(for rpid: Int64) async {
+        guard !loadingSubReplies.contains(rpid) else { return }
+        let oid = videoInfo?.aid ?? aid
+        guard oid > 0 else { return }
+        loadingSubReplies.insert(rpid)
+        do {
+            let data = try await repo.fetchSubReplies(oid: oid, rootRpid: rpid)
+            expandedReplies[rpid] = data?.replies ?? []
+        } catch {
+            print("[Player] loadSubReplies error: \(error)")
+        }
+        loadingSubReplies.remove(rpid)
     }
 
     private func fetchDanmakuRaw(cid: Int64) async throws -> Data {
