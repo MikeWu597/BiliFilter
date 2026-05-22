@@ -7,8 +7,6 @@ struct HomeScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             HomeTopBar()
-            HomeCategoryTabs(selected: $viewModel.selectedCategory)
-                .onChange(of: viewModel.selectedCategory) { _, new in viewModel.switchCategory(new) }
 
             if viewModel.isLoading && viewModel.feedItems.isEmpty {
                 Spacer()
@@ -46,7 +44,7 @@ struct HomeTopBar: View {
         HStack {
             HStack(spacing: 4) {
                 Image(systemName: "play.rectangle.fill").font(.title3).foregroundColor(themeManager.accentColor)
-                Text("BiliPai").font(.title3).fontWeight(.bold).foregroundColor(themeManager.accentColor)
+                Text("BiliFilter").font(.title3).fontWeight(.bold).foregroundColor(themeManager.accentColor)
             }
             Spacer()
             Image(systemName: "magnifyingglass").font(.title3).foregroundColor(.secondary)
@@ -54,38 +52,6 @@ struct HomeTopBar: View {
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .background(.regularMaterial)
-    }
-}
-
-struct HomeCategoryTabs: View {
-    @Binding var selected: HomeCategory
-    @Namespace private var animation
-    @EnvironmentObject private var themeManager: ThemeManager
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                ForEach(HomeCategory.allCases) { cat in
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { selected = cat }
-                    } label: {
-                        VStack(spacing: 4) {
-                            Text(cat.rawValue)
-                                .font(.subheadline)
-                                .fontWeight(selected == cat ? .semibold : .regular)
-                                .foregroundColor(selected == cat ? themeManager.accentColor : .secondary)
-                                .padding(.horizontal, 16).padding(.vertical, 6)
-                            if selected == cat {
-                                Capsule().fill(themeManager.accentColor).frame(height: 2)
-                                    .matchedGeometryEffect(id: "tab", in: animation)
-                            } else {
-                                Capsule().fill(.clear).frame(height: 2)
-                            }
-                        }
-                    }
-                }
-            }.padding(.horizontal, 8)
-        }
-        .background(themeManager.backgroundColor)
     }
 }
 
