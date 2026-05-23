@@ -34,6 +34,7 @@ final class PlayerViewModel: ObservableObject {
     @Published var replyErrorMessage: String?
     @Published var errorMessage: String?
     @Published var replySortMode = 3 // 3=hot, 2=newest
+    let aigc = AIGCDetector()
     // 子回复（楼中楼）
     @Published var expandedReplies: [Int64: [ReplyItem]] = [:]
     @Published var loadingSubReplies: Set<Int64> = []
@@ -161,6 +162,7 @@ final class PlayerViewModel: ObservableObject {
         addTimeObserver()
         p.play()
         isPlaying = true
+        startAudioCapture(asset: asset)
         print("[Player] play() called")
     }
 
@@ -402,7 +404,88 @@ final class PlayerViewModel: ObservableObject {
         return result
     }
 
+    // MARK: - 语音识别 + AIGC
+    private var captureTask: Task<Void, Never>?
+
+    private func startAudioCapture(asset: AVURLAsset) {
+        print("[AIGC] startAudioCapture called")
+        aigc.start()
+        let url = asset.url
+        let headers = videoHeaders
+        captureTask = Task {
+            print("[AIGC] download task started")
+            let tmpDir = FileManager.default.temporaryDirectory
+            let localURL = tmpDir.appendingPathComponent("bili_a_\(UUID().uuidString).mp4")
+            defer { try? FileManager.default.removeItem(at: localURL) }
+
+            do {
+                // 流式下载
+                var req = URLRequest(url: url)
+                for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
+                req.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+                let (fileURL, response) = try await URLSession.shared.download(for: req)
+                let httpResp = response as? HTTPURLResponse
+                print("[AIGC] downloaded, status=\(httpResp?.statusCode ?? 0), size=\((try? Data(contentsOf: fileURL).count) ?? 0)")
+                try FileManager.default.moveItem(at: fileURL, to: localURL)
+            } catch {
+                print("[AIGC] download error: \(error)")
+                await MainActor.run { aigc.stop() }
+                return
+            }
+
+            let localAsset = AVURLAsset(url: localURL)
+            guard let track = try? await localAsset.loadTracks(withMediaType: .audio).first else {
+                print("[AIGC] no audio track in downloaded file")
+                await MainActor.run { aigc.stop() }
+                return
+            }
+            do {
+                let reader = try AVAssetReader(asset: localAsset)
+                let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
+                    AVFormatIDKey: kAudioFormatLinearPCM,
+                    AVSampleRateKey: 16000,
+                    AVNumberOfChannelsKey: 1,
+                    AVLinearPCMBitDepthKey: 16,
+                    AVLinearPCMIsFloatKey: false,
+                    AVLinearPCMIsBigEndianKey: false,
+                ])
+                reader.add(output)
+                reader.startReading()
+                print("[AIGC] reading audio...")
+
+                while reader.status == .reading, !Task.isCancelled {
+                    guard let sample = output.copyNextSampleBuffer() else { break }
+                    guard let block = CMSampleBufferGetDataBuffer(sample) else { continue }
+                    var len = 0; var ptr: UnsafeMutablePointer<Int8>?
+                    CMBlockBufferGetDataPointer(block, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &len, dataPointerOut: &ptr)
+                    guard let p = ptr, len > 0 else { continue }
+                    let raw = Data(bytes: p, count: len)
+                    if let fmt = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true),
+                       let pcm = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(len / 2)) {
+                        pcm.frameLength = pcm.frameCapacity
+                        raw.withUnsafeBytes { buf in
+                            if let src = buf.baseAddress?.assumingMemoryBound(to: Int16.self),
+                               let dst = pcm.int16ChannelData?[0] {
+                                for i in 0..<Int(pcm.frameLength) { dst[i] = src[i] }
+                            }
+                        }
+                        await MainActor.run { aigc.feedAudio(pcm) }
+                    }
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+                reader.cancelReading()
+                await MainActor.run { aigc.stop() }
+                print("[AIGC] audio done")
+            } catch {
+                print("[AIGC] read error: \(error)")
+                await MainActor.run { aigc.stop() }
+            }
+        }
+    }
+
     func cleanup() {
+        aigc.stop()
+        captureTask?.cancel()
         player?.pause(); statusObserver?.invalidate()
         if let o = timeObserver { player?.removeTimeObserver(o) }
         player = nil; timeObserver = nil

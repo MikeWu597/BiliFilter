@@ -197,6 +197,26 @@ struct VideoPlayerScreen: View {
                             }
                         }
                     }.padding(.horizontal, 16)
+                    // AIGC检测结果
+                    if viewModel.aigc.wordCount > 0 || viewModel.aigc.isRunning {
+                        HStack(spacing: 6) {
+                            Image(systemName: viewModel.aigc.aigcScore > 0.5 ? "exclamationmark.shield.fill" : "checkmark.shield.fill")
+                                .font(.caption)
+                                .foregroundColor(viewModel.aigc.aigcScore > 0.5 ? .orange : .green)
+                            Text("AIGC 检测: \(viewModel.aigc.aigcLabel)")
+                                .font(.caption)
+                                .foregroundColor(viewModel.aigc.aigcScore > 0.5 ? .orange : .secondary)
+                            if viewModel.aigc.aigcScore > 0 {
+                                Text("(\(String(format: "%.0f", viewModel.aigc.aigcScore * 100))%)")
+                                    .font(.caption2).foregroundColor(.secondary)
+                            }
+                            if viewModel.aigc.isRunning {
+                                ProgressView().scaleEffect(0.5)
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 4)
+                    }
                     if let desc = info.desc, !desc.isEmpty {
                         Text(desc).font(.subheadline).foregroundColor(.secondary).lineLimit(3).padding(.horizontal, 16)
                     }
