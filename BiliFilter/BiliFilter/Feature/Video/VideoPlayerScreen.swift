@@ -164,6 +164,7 @@ struct VideoPlayerScreen: View {
             LazyVStack(alignment: .leading, spacing: 12, pinnedViews: []) {
                 if let info = viewModel.videoInfo {
                     Text(info.title ?? "").font(.headline).padding(.horizontal, 16).padding(.top, 12)
+                    Text(viewModel.bvid).font(.caption).foregroundColor(.secondary).padding(.horizontal, 16)
                     Group {
                         if let mid = info.owner?.mid {
                             NavigationLink(value: AppRoute.space(mid: mid)) {
