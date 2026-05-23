@@ -33,6 +33,7 @@ final class PlayerViewModel: ObservableObject {
     @Published var isLoadingReplies = false
     @Published var replyErrorMessage: String?
     @Published var errorMessage: String?
+    @Published var replySortMode = 3 // 3=hot, 2=newest
     // 子回复（楼中楼）
     @Published var expandedReplies: [Int64: [ReplyItem]] = [:]
     @Published var loadingSubReplies: Set<Int64> = []
@@ -292,16 +293,27 @@ final class PlayerViewModel: ObservableObject {
         replyErrorMessage = nil
         do {
         replyPage = 1
-            let data = try await repo.fetchReplies(oid: oid, pn: replyPage)
+            let data = try await repo.fetchReplies(oid: oid, mode: replySortMode, pn: replyPage)
             replyItems = data?.replies ?? []
             replyCursor = data?.cursor
-            print("[Reply] INIT page=\(replyPage) loaded=\(replyItems.count) allCount=\(data?.cursor?.allCount ?? -1) isEnd=\(data?.cursor?.isEnd) next=\(data?.cursor?.next)")
+            print("[Reply] INIT page=\(replyPage) mode=\(replySortMode) loaded=\(replyItems.count) allCount=\(data?.cursor?.allCount ?? -1) isEnd=\(data?.cursor?.isEnd) next=\(data?.cursor?.next)")
         } catch {
             replyErrorMessage = error.localizedDescription
             print("[Player] reply error: \(error)")
         }
         isLoadingReplies = false
     }
+
+    func switchReplySort() {
+        replySortMode = replySortMode == 3 ? 2 : 3
+        replyItems = []
+        replyCursor = nil
+        replyPage = 1
+        expandedReplies = [:]
+        Task { await loadReplies() }
+    }
+
+    var replySortLabel: String { replySortMode == 3 ? "按热度" : "按时间" }
 
     func loadMoreReplies() async {
         guard hasMoreReplies, !isLoadingReplies else {
@@ -314,7 +326,7 @@ final class PlayerViewModel: ObservableObject {
         do {
         replyPage += 1
             print("[Reply] loadMoreReplies START page=\(replyPage) currentCount=\(replyItems.count)")
-            let data = try await repo.fetchReplies(oid: oid, pn: replyPage)
+            let data = try await repo.fetchReplies(oid: oid, mode: replySortMode, pn: replyPage)
             let newItems = data?.replies ?? []
             let existingIds = Set(replyItems.map(\.rpid))
             let uniqueItems = newItems.filter { !existingIds.contains($0.rpid) }

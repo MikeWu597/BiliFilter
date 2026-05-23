@@ -297,8 +297,15 @@ struct ReplyLevelInfo: Codable {
     enum CodingKeys: String, CodingKey { case currentLevel = "current_level" }
 }
 
+struct ReplyEmote: Codable {
+    let id: Int64
+    let text: String
+    let url: String
+}
+
 struct ReplyContent: Codable {
     let message: String
+    let emote: [String: ReplyEmote]?
 }
 
 struct ReplyControl: Codable {

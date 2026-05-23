@@ -242,6 +242,16 @@ struct VideoPlayerScreen: View {
             Text("评论 \(totalCount > 0 ? formatCount(totalCount) : "")")
                 .font(.headline)
             Spacer()
+            Button { viewModel.switchReplySort() } label: {
+                HStack(spacing: 2) {
+                    Text(viewModel.replySortLabel)
+                        .font(.caption)
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.caption2)
+                }
+                .foregroundColor(themeManager.accentColor)
+            }
+            .disabled(viewModel.isLoadingReplies)
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
@@ -367,9 +377,7 @@ struct ReplyRow: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
-                    Text(reply.content.message)
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
+                    EmoteText(message: reply.content.message, emotes: reply.content.emote ?? [:], font: .subheadline)
                         .lineLimit(6)
                     HStack(spacing: 16) {
                         if let loc = reply.replyControl?.location, !loc.isEmpty {
@@ -396,8 +404,8 @@ struct ReplyRow: View {
                         HStack(alignment: .top, spacing: 8) {
                             Text(sub.member.uname)
                                 .font(.caption).foregroundColor(.accentColor)
-                            + Text("：\(sub.content.message)")
-                                .font(.caption).foregroundColor(.secondary)
+                            + Text("：").font(.caption).foregroundColor(.secondary)
+                            EmoteText(message: sub.content.message, emotes: sub.content.emote ?? [:], font: .caption, fgColor: .secondary)
                         }
                         .lineLimit(1)
                         .padding(.leading, 44)
@@ -425,8 +433,8 @@ struct ReplyRow: View {
                         HStack(alignment: .top, spacing: 8) {
                             Text(sub.member.uname)
                                 .font(.caption).foregroundColor(.accentColor)
-                            + Text("：\(sub.content.message)")
-                                .font(.caption).foregroundColor(.secondary)
+                            + Text("：").font(.caption).foregroundColor(.secondary)
+                            EmoteText(message: sub.content.message, emotes: sub.content.emote ?? [:], font: .caption, fgColor: .secondary)
                         }
                         .lineLimit(3)
                         .padding(.leading, 44)
@@ -444,6 +452,112 @@ struct ReplyRow: View {
     }
 }
 
+
+// MARK: - 表情包渲染
+struct EmoteText: View {
+    let message: String
+    let emotes: [String: ReplyEmote]
+    let font: Font
+    var fgColor: Color = .primary
+
+    var body: some View {
+        EmoteLabel(message: message, emotes: emotes, font: font, fgColor: fgColor)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct EmoteLabel: UIViewRepresentable {
+    let message: String
+    let emotes: [String: ReplyEmote]
+    let font: Font
+    let fgColor: Color
+
+    func makeUIView(context: Context) -> UILabel {
+        let label = UILabel()
+        label.numberOfLines = 0
+        label.lineBreakMode = .byWordWrapping
+        label.setContentCompressionResistancePriority(.required, for: .vertical)
+        label.setContentHuggingPriority(.required, for: .vertical)
+        context.coordinator.label = label
+        context.coordinator.loadEmotes()
+        return label
+    }
+
+    func updateUIView(_ uiView: UILabel, context: Context) { }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UILabel, context: Context) -> CGSize? {
+        let w = proposal.width ?? UIScreen.main.bounds.width - 80
+        guard w > 0, w < .infinity else { return nil }
+        let size = uiView.sizeThatFits(CGSize(width: w, height: .greatestFiniteMagnitude))
+        return CGSize(width: w, height: max(size.height, uiView.font.lineHeight * 1.2))
+    }
+
+    func makeCoordinator() -> Coordinator {
+        let uifont: UIFont
+        switch font {
+        case .subheadline: uifont = .systemFont(ofSize: 15)
+        case .caption: uifont = .systemFont(ofSize: 12)
+        default: uifont = .systemFont(ofSize: 15)
+        }
+        return Coordinator(message: message, emotes: emotes, font: uifont, fgColor: UIColor(fgColor))
+    }
+
+    class Coordinator {
+        let message: String
+        let emotes: [String: ReplyEmote]
+        let font: UIFont
+        let fgColor: UIColor
+        weak var label: UILabel?
+        private static let tokenPattern = try! NSRegularExpression(pattern: #"\[([^\]]+)\]"#)
+
+        init(message: String, emotes: [String: ReplyEmote], font: UIFont, fgColor: UIColor) {
+            self.message = message
+            self.emotes = emotes
+            self.font = font
+            self.fgColor = fgColor
+        }
+
+        func loadEmotes() {
+            let attr = NSMutableAttributedString()
+            let ns = message as NSString
+            let range = NSRange(location: 0, length: ns.length)
+            var lastEnd = 0
+
+            Self.tokenPattern.enumerateMatches(in: message, range: range) { [weak self] match, _, _ in
+                guard let self, let match else { return }
+                let mr = match.range
+                if mr.location > lastEnd {
+                    attr.append(NSAttributedString(string: ns.substring(with: NSRange(location: lastEnd, length: mr.location - lastEnd)), attributes: [.font: self.font, .foregroundColor: self.fgColor]))
+                }
+                let token = ns.substring(with: mr)
+                if let emote = self.emotes[token], let url = URL(string: emote.url.replacingOccurrences(of: "http://", with: "https://")) {
+                    let attachment = NSTextAttachment()
+                    attachment.bounds = CGRect(x: 0, y: -3, width: self.font.lineHeight, height: self.font.lineHeight)
+                    // Queue image load
+                    let task = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+                        if let data = data, let img = UIImage(data: data) {
+                            DispatchQueue.main.async {
+                                attachment.image = img
+                                self?.label?.invalidateIntrinsicContentSize()
+                                self?.label?.setNeedsDisplay()
+                            }
+                        }
+                    }
+                    task.resume()
+                    attr.append(NSAttributedString(attachment: attachment))
+                } else {
+                    attr.append(NSAttributedString(string: token, attributes: [.font: self.font, .foregroundColor: self.fgColor]))
+                }
+                lastEnd = mr.location + mr.length
+            }
+            if lastEnd < ns.length {
+                attr.append(NSAttributedString(string: ns.substring(with: NSRange(location: lastEnd, length: ns.length - lastEnd)), attributes: [.font: self.font, .foregroundColor: self.fgColor]))
+            }
+            label?.attributedText = attr
+            label?.invalidateIntrinsicContentSize()
+        }
+    }
+}
 
 #Preview {
     NavigationStack { VideoPlayerScreen(bvid: "BV1xx411c7mD").environmentObject(ThemeManager.shared) }
