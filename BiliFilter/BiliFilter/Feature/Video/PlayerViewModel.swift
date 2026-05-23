@@ -62,6 +62,10 @@ final class PlayerViewModel: ObservableObject {
     ]
 
     func loadVideo() async {
+        guard player == nil else {
+            print("[Player] loadVideo skipped - already loaded")
+            return
+        }
         playerState = .loading
         // 配置音频会话: 播放模式(忽略静音开关)、后台播放
         do {
