@@ -82,75 +82,86 @@ final class AIGCDetector: ObservableObject {
         isRunning = false
     }
 
-    /// 基于自困惑度分析：困惑度越低 = 越可预测 = 越像AI生成
+    /// 多维度分析：困惑度 + 重复度 + AI特征词
     private func analyze() {
         let text = transcribedText
-        guard text.count > 50 else {
+        guard text.count > 30 else {
             aigcLabel = "文本不足"
             return
         }
 
-        let words = segmentWords(text)
-        wordCount = words.count
-        guard words.count > 20 else {
-            aigcLabel = "词数不足"
+        // 提取有效字符（中文+字母+数字）
+        let chars = Array(text).filter { c in
+            let s = String(c)
+            return s.range(of: "\\p{Han}|[a-zA-Z0-9]", options: .regularExpression) != nil
+        }
+        guard chars.count > 20 else {
+            aigcLabel = "文本不足"
             return
         }
+        wordCount = chars.count
 
-        // 计算 unigram 困惑度
-        var wordFreq: [String: Int] = [:]
-        for w in words { wordFreq[w, default: 0] += 1 }
-        let n = Double(words.count)
+        // bigram 统计
+        var bigramFreq: [String: Int] = [:]
+        for i in 0..<(chars.count - 1) {
+            let bg = String(chars[i...i+1])
+            bigramFreq[bg, default: 0] += 1
+        }
+        let n = Double(chars.count - 1)
+
+        // 1. 困惑度：越低（词分布集中）越像AI
         var logSum: Double = 0
-        for w in words {
-            let prob = Double(wordFreq[w]!) / n
-            logSum += log(prob)
+        for i in 0..<(chars.count - 1) {
+            let bg = String(chars[i...i+1])
+            let prob = Double(bigramFreq[bg]!) / n
+            logSum += log(max(prob, 1e-10))
         }
         let perplexity = exp(-logSum / n)
-
-        // 额外指标：唯一词比例
-        let uniqueRatio = Double(wordFreq.count) / n
-
-        // 综合评分：困惑度 + 重复度 映射到 0~1
-        // perplexity 1~5 → high AI; 20+ → very human
-        // uniqueRatio 低 → 重复 → AI
+        // 映射：perplexity=1 → 1.0(AI), perplexity=30+ → 0(真人)
         let pScore = max(0, min(1, 1.0 - (perplexity - 1) / 30))
-        let uScore = 1.0 - uniqueRatio
-        let rawScore = (pScore * 0.6 + uScore * 0.4)
+
+        // 2. 重复度：唯一bigram比例
+        let uniqueRatio = Double(bigramFreq.count) / n
+        let rScore = 1.0 - uniqueRatio
+
+        // 3. AI特征词
+        let aiMarkers = [
+            "值得注意", "需要注意", "值得关注",
+            "从这个角度", "从这个层面", "从这个意义",
+            "总的来说", "综上所述", "总而言之", "总的来看",
+            "首先", "其次", "最后", "第一", "第二", "第三",
+            "不仅如此", "更重要的是", "更关键的是",
+            "由此可见", "由此看来", "由此可知",
+            "在这个基础", "在此基础上",
+            "显而易见", "显然", "毫无疑问",
+            "需要强调", "必须指出", "不得不提",
+            "一般而言", "一般来说", "通常情况下",
+            "换言之", "换句话说", "也就是说",
+            "具体而言", "具体来说", "具体来看",
+            "事实上", "实际上", "其实",
+            "某种程度", "某种意义上",
+            "不可否认", "毋庸置疑",
+            "众所周知",
+            "极大", "显著", "深远", "重大",
+        ]
+        var markerHits = 0
+        for m in aiMarkers { if text.contains(m) { markerHits += 1 } }
+        let mScore = min(1.0, Double(markerHits) / max(1.0, Double(text.count) / 80.0))
+
+        // 综合：困惑度40% + 重复度30% + 特征词30%
+        let rawScore = pScore * 0.4 + rScore * 0.3 + mScore * 0.3
         aigcScore = min(1, max(0, rawScore))
 
-        if aigcScore < 0.15 {
+        if aigcScore < 0.12 {
             aigcLabel = "疑似真人"
-        } else if aigcScore < 0.40 {
+        } else if aigcScore < 0.30 {
             aigcLabel = "AI概率较低"
-        } else if aigcScore < 0.65 {
+        } else if aigcScore < 0.55 {
             aigcLabel = "可能含AI"
         } else {
             aigcLabel = "疑似AI生成"
         }
 
-        print("[AIGC] words=\(words.count) unique=\(wordFreq.count) perplexity=\(String(format:"%.2f",perplexity)) score=\(String(format:"%.2f",aigcScore)) label=\(aigcLabel)")
-    }
-
-    private func segmentWords(_ text: String) -> [String] {
-        // 简单分词：按标点、空格切分，取长度≥2的中文词或英文词
-        let cleaned = text.replacingOccurrences(of: "[，。！？、；：\"\"''（）【】《》\\[\\]\\.,!?;:\\s]+", with: " ", options: .regularExpression)
-        let tokens = cleaned.components(separatedBy: .whitespaces).filter { $0.count >= 2 }
-        // 对中文做2-gram切分（简单分词）
-        var result: [String] = []
-        for token in tokens {
-            if token.range(of: "\\p{Han}", options: .regularExpression) != nil {
-                // 中文按字符切bigram
-                let chars = Array(token)
-                if chars.count >= 2 {
-                    for i in 0..<(chars.count - 1) {
-                        result.append(String(chars[i...i+1]))
-                    }
-                }
-            } else {
-                result.append(token.lowercased())
-            }
-        }
-        return result
+        print("[AIGC] chars=\(chars.count) perplexity=\(String(format:"%.2f",perplexity)) repeat=\(String(format:"%.2f",rScore)) markers=\(markerHits) score=\(String(format:"%.2f",aigcScore)) label=\(aigcLabel)")
     }
 }
