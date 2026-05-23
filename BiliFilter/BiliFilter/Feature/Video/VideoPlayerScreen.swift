@@ -225,7 +225,8 @@ struct VideoPlayerScreen: View {
                     let parentReason = CommentFilterSettings.shared.checkReply(
                         content: reply.content.message,
                         username: reply.member.uname,
-                        level: reply.member.levelInfo?.currentLevel
+                        level: reply.member.levelInfo?.currentLevel,
+                        mid: Int64(reply.member.mid)
                     )
                     ReplyRow(
                         reply: reply,
@@ -500,7 +501,8 @@ struct SubReplyRow: View {
         CommentFilterSettings.shared.checkReply(
             content: reply.content.message,
             username: reply.member.uname,
-            level: reply.member.levelInfo?.currentLevel
+            level: reply.member.levelInfo?.currentLevel,
+            mid: Int64(reply.member.mid)
         )
     }
 

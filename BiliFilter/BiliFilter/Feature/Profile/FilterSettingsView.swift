@@ -35,7 +35,8 @@ final class FilterSettings: ObservableObject {
         titleEnabled = defaults.object(forKey: "filter_title_enabled") as? Bool ?? false
     }
 
-    func checkVideo(duration: Int, title: String) -> String? {
+    func checkVideo(duration: Int, title: String, ownerMid: Int64? = nil) -> String? {
+        if let mid = ownerMid, let reason = UIDFilterSettings.shared.check(mid: mid) { return reason }
         if durationEnabled {
             let d = Double(duration)
             if d < durationMin { return "时长过短(< \(Int(durationMin))s)" }

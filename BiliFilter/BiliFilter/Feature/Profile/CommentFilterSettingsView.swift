@@ -63,7 +63,8 @@ final class CommentFilterSettings: ObservableObject {
     }
 
     /// 返回屏蔽原因，nil表示不屏蔽
-    func checkReply(content: String, username: String, level: Int?) -> String? {
+    func checkReply(content: String, username: String, level: Int?, mid: Int64? = nil) -> String? {
+        if let mid, let reason = UIDFilterSettings.shared.check(mid: mid) { return reason }
         if levelFilterEnabled, let lv = level {
             if !selectedLevels.contains(lv) { return "用户等级 Lv\(lv) 已过滤" }
         }

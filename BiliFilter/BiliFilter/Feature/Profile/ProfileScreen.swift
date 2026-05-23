@@ -46,6 +46,10 @@ struct ProfileScreen: View {
                         Label("评论区过滤", systemImage: "text.bubble.fill")
                             .foregroundColor(.blue)
                     }
+                    NavigationLink(destination: UIDFilterSettingsView()) {
+                        Label("用户过滤", systemImage: "person.fill.xmark")
+                            .foregroundColor(.pink)
+                    }
                 }
             }
             .navigationTitle("我的")
