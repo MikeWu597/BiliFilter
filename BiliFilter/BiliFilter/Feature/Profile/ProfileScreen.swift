@@ -57,6 +57,10 @@ struct ProfileScreen: View {
                         Label("用户标记", systemImage: "tag.fill")
                             .foregroundColor(.purple)
                     }
+                    NavigationLink(destination: VideoTagsView()) {
+                        Label("视频标记", systemImage: "bookmark.fill")
+                            .foregroundColor(.purple)
+                    }
                 }
             }
             .navigationTitle("我的")

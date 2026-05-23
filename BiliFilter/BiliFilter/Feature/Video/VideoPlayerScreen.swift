@@ -9,6 +9,7 @@ struct VideoPlayerScreen: View {
     @State private var showSpeedMenu = false
     @State private var showDanmakuSettings = false
     @State private var showPageSelector = false
+    @State private var showVideoTagSheet = false
 
     init(bvid: String, cid: Int64 = 0, aid: Int64 = 0) {
         _viewModel = StateObject(wrappedValue: PlayerViewModel(bvid: bvid, cid: cid, aid: aid))
@@ -33,6 +34,9 @@ struct VideoPlayerScreen: View {
         .sheet(isPresented: $showSpeedMenu) { speedMenu }
         .sheet(isPresented: $showDanmakuSettings) { danmakuSettings }
         .sheet(isPresented: $showPageSelector) { pageSelector }
+        .sheet(isPresented: $showVideoTagSheet) {
+            AddVideoTagSheet(bvid: viewModel.bvid, title: viewModel.videoInfo?.title ?? "")
+        }
     }
 
     private var normalPlayer: some View {
@@ -164,7 +168,16 @@ struct VideoPlayerScreen: View {
             LazyVStack(alignment: .leading, spacing: 12, pinnedViews: []) {
                 if let info = viewModel.videoInfo {
                     Text(info.title ?? "").font(.headline).padding(.horizontal, 16).padding(.top, 12)
-                    Text(viewModel.bvid).font(.caption).foregroundColor(.secondary).padding(.horizontal, 16)
+                    HStack(spacing: 8) {
+                        Text(viewModel.bvid).font(.caption).foregroundColor(.secondary)
+                        Button { showVideoTagSheet = true } label: {
+                            Label("标记", systemImage: "bookmark")
+                                .font(.caption).foregroundColor(.white)
+                                .padding(.horizontal, 12).padding(.vertical, 4)
+                                .background(themeManager.accentColor).cornerRadius(12)
+                        }
+                    }
+                    .padding(.horizontal, 16)
                     Group {
                         if let mid = info.owner?.mid {
                             NavigationLink(value: AppRoute.space(mid: mid)) {
