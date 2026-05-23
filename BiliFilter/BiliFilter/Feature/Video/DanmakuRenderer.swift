@@ -166,6 +166,7 @@ final class DanmakuCanvas: UIView {
         var drawnCount = 0
         for i in startIdx..<endIdx {
             let item = itemsByTime[i]
+            let filtered = DanmakuFilterSettings.shared.shouldFilter(content: item.content)
             let elapsed = t - item.time
             // 硬守卫：不在可见时间窗内直接跳过
             guard elapsed >= -0.5 && elapsed <= scrollSec else { continue }
@@ -183,12 +184,28 @@ final class DanmakuCanvas: UIView {
             rowUsed[row] = true
             let y = CGFloat(row) * (font.lineHeight + 4) + font.lineHeight
 
+            if filtered {
+                let markColor = UIColor.gray.withAlphaComponent(CGFloat(danmakuAlpha))
+                let r = font.lineHeight * 0.45
+                ctx.saveGState()
+                ctx.setStrokeColor(markColor.cgColor)
+                ctx.setLineWidth(1.5)
+                let cx = x, cy = y - font.lineHeight * 0.5
+                ctx.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
+                ctx.strokePath()
+                ctx.move(to: CGPoint(x: cx - r * 0.5, y: cy - r * 0.5))
+                ctx.addLine(to: CGPoint(x: cx + r * 0.5, y: cy + r * 0.5))
+                ctx.move(to: CGPoint(x: cx + r * 0.5, y: cy - r * 0.5))
+                ctx.addLine(to: CGPoint(x: cx - r * 0.5, y: cy + r * 0.5))
+                ctx.strokePath()
+                ctx.restoreGState()
+                drawnCount += 1
+            } else {
             let str = NSAttributedString(string: item.content, attributes: [
                 .font: font,
                 .foregroundColor: UIColor(item.color).withAlphaComponent(danmakuAlpha),
                 .shadow: shadow,
             ])
-
             ctx.saveGState()
             ctx.textMatrix = .identity
             ctx.translateBy(x: x, y: y)
@@ -196,6 +213,7 @@ final class DanmakuCanvas: UIView {
             CTLineDraw(CTLineCreateWithAttributedString(str), ctx)
             drawnCount += 1
             ctx.restoreGState()
+            }
         }
         if drawnCount > 0 {
             print("[Danmaku] draw engineTime=\(String(format:"%.2f",t)) window=[\(String(format:"%.2f",lo)),\(String(format:"%.2f",hi))] startIdx=\(startIdx) endIdx=\(endIdx) drawn=\(drawnCount)")

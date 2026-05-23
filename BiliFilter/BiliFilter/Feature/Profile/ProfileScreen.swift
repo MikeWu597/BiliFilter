@@ -50,16 +50,20 @@ struct ProfileScreen: View {
                         Label("用户过滤", systemImage: "person.fill.xmark")
                             .foregroundColor(.pink)
                     }
+                    NavigationLink(destination: DanmakuFilterSettingsView()) {
+                        Label("弹幕过滤", systemImage: "rectangle.stack.fill")
+                            .foregroundColor(.green)
+                    }
                 }
 
                 Section {
                     NavigationLink(destination: UserTagsView()) {
                         Label("用户标记", systemImage: "tag.fill")
-                            .foregroundColor(.purple)
+                            .foregroundColor(.orange)
                     }
                     NavigationLink(destination: VideoTagsView()) {
                         Label("视频标记", systemImage: "bookmark.fill")
-                            .foregroundColor(.purple)
+                            .foregroundColor(.blue)
                     }
                 }
             }
