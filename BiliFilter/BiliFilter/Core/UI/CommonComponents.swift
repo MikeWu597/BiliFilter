@@ -13,6 +13,7 @@ struct VideoCardView: View {
     var filterReason: String?
     var ownerMid: Int64?
 
+    @State private var showTagSheet = false
     @EnvironmentObject private var themeManager: ThemeManager
 
     var body: some View {
@@ -77,6 +78,21 @@ struct VideoCardView: View {
                     }
                 } else {
                     Text(upName).font(.caption).foregroundColor(themeManager.secondaryTextColor).lineLimit(1)
+                }
+                Spacer()
+                if let bvid = bvid, !bvid.isEmpty {
+                    Button { showTagSheet = true } label: {
+                        Image(systemName: "bookmark")
+                            .font(.caption2)
+                            .foregroundColor(themeManager.accentColor)
+                            .padding(4)
+                            .background(Circle().fill(themeManager.accentColor.opacity(0.15)))
+                    }
+                }
+            }
+            .sheet(isPresented: $showTagSheet) {
+                if let bvid = bvid {
+                    AddVideoTagSheet(bvid: bvid, title: title)
                 }
             }
         }
