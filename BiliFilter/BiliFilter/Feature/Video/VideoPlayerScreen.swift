@@ -422,14 +422,8 @@ struct ReplyRow: View {
             if let embedded = reply.replies, !embedded.isEmpty, subReplies == nil {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(embedded.prefix(3)) { sub in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text(sub.member.uname)
-                                .font(.caption).foregroundColor(.accentColor)
-                            + Text("：").font(.caption).foregroundColor(.secondary)
-                            EmoteText(message: sub.content.message, emotes: sub.content.emote ?? [:], font: .caption, fgColor: .secondary)
-                        }
-                        .lineLimit(1)
-                        .padding(.leading, 44)
+                        SubReplyRow(reply: sub)
+                            .padding(.leading, 44)
                     }
                     if reply.replyCount > 3 {
                         Button { onToggle?() } label: {
@@ -451,14 +445,8 @@ struct ReplyRow: View {
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(subs) { sub in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text(sub.member.uname)
-                                .font(.caption).foregroundColor(.accentColor)
-                            + Text("：").font(.caption).foregroundColor(.secondary)
-                            EmoteText(message: sub.content.message, emotes: sub.content.emote ?? [:], font: .caption, fgColor: .secondary)
-                        }
-                        .lineLimit(3)
-                        .padding(.leading, 44)
+                        SubReplyRow(reply: sub)
+                            .padding(.leading, 44)
                     }
                 }
                 .padding(.top, 4)
@@ -474,6 +462,59 @@ struct ReplyRow: View {
     }
 }
 
+
+// MARK: - 子回复行
+struct SubReplyRow: View {
+    let reply: ReplyItem
+
+    private var filterReason: String? {
+        CommentFilterSettings.shared.checkReply(
+            content: reply.content.message,
+            username: reply.member.uname,
+            level: reply.member.levelInfo?.currentLevel
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            HStack(alignment: .top, spacing: 8) {
+                AsyncImage(url: URL(string: reply.member.avatarUrl)) { img in
+                    img.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Color.gray.opacity(0.2)
+                }
+                .frame(width: 20, height: 20)
+                .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(reply.member.uname)
+                            .font(.caption).foregroundColor(.accentColor)
+                        if let level = reply.member.levelInfo?.currentLevel, level > 0 {
+                            Text("Lv\(level)")
+                                .font(.system(size: 8))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 3).padding(.vertical, 1)
+                                .background(Color.orange)
+                                .cornerRadius(2)
+                        }
+                    }
+                    EmoteText(message: reply.content.message, emotes: reply.content.emote ?? [:], font: .caption, fgColor: .secondary)
+                        .lineLimit(3)
+                }
+            }
+            if let reason = filterReason {
+                Color(.systemGray5)
+                VStack(spacing: 2) {
+                    Image(systemName: "eye.slash.fill")
+                        .font(.system(size: 10)).foregroundColor(.secondary)
+                    Text(reason)
+                        .font(.caption2).foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+}
 
 // MARK: - 表情包渲染
 struct EmoteText: View {
