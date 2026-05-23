@@ -51,6 +51,13 @@ struct ProfileScreen: View {
                             .foregroundColor(.pink)
                     }
                 }
+
+                Section {
+                    NavigationLink(destination: UserTagsView()) {
+                        Label("用户标记", systemImage: "tag.fill")
+                            .foregroundColor(.purple)
+                    }
+                }
             }
             .navigationTitle("我的")
         }

@@ -53,6 +53,7 @@ struct SpaceScreen: View {
     let mid: Int64
     @StateObject private var viewModel = SpaceViewModel()
     @EnvironmentObject private var themeManager: ThemeManager
+    @State private var showTagSheet = false
 
     var body: some View {
         ScrollView {
@@ -65,6 +66,9 @@ struct SpaceScreen: View {
         .navigationTitle(viewModel.userName.isEmpty ? "用户空间" : viewModel.userName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load(mid: mid) }
+        .sheet(isPresented: $showTagSheet) {
+            AddUserTagSheet(mid: mid, userName: viewModel.userName)
+        }
     }
 
     private var headerSection: some View {
@@ -83,6 +87,12 @@ struct SpaceScreen: View {
             HStack(spacing: 24) {
                 VStack { Text(formatCount(viewModel.following)).font(.headline); Text("关注").font(.caption2).foregroundColor(.secondary) }
                 VStack { Text(formatCount(viewModel.followers)).font(.headline); Text("粉丝").font(.caption2).foregroundColor(.secondary) }
+            }
+            Button { showTagSheet = true } label: {
+                Label("标记", systemImage: "tag")
+                    .font(.caption).foregroundColor(.white)
+                    .padding(.horizontal, 16).padding(.vertical, 6)
+                    .background(themeManager.accentColor).cornerRadius(14)
             }
             if !viewModel.sign.isEmpty {
                 Text(viewModel.sign)
