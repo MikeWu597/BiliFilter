@@ -10,6 +10,7 @@ struct VideoCardView: View {
     let duration: Int
     var bvid: String?
     var cid: Int64?
+    var filterReason: String?
 
     @EnvironmentObject private var themeManager: ThemeManager
 
@@ -20,13 +21,34 @@ struct VideoCardView: View {
     @ViewBuilder
     private var cardContent: some View {
         Group {
-            if let bvid = bvid, !bvid.isEmpty {
+            if filterReason != nil {
+                cardLayout
+                    .overlay(filterOverlay)
+            } else if let bvid = bvid, !bvid.isEmpty {
                 NavigationLink(value: AppRoute.videoPlayer(bvid: bvid, cid: cid ?? 0)) {
                     cardLayout
                 }
                 .buttonStyle(.plain)
             } else {
                 cardLayout
+            }
+        }
+    }
+
+    private var filterOverlay: some View {
+        ZStack {
+            Color(.systemGray5)
+            VStack(spacing: 6) {
+                Image(systemName: "eye.slash.fill")
+                    .font(.title2)
+                    .foregroundColor(.secondary)
+                if let reason = filterReason {
+                    Text(reason)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 4)
+                }
             }
         }
     }
@@ -49,11 +71,6 @@ struct VideoCardView: View {
                 .frame(maxHeight: 40, alignment: .top)
             HStack(spacing: 8) {
                 Text(upName).font(.caption).foregroundColor(themeManager.secondaryTextColor).lineLimit(1)
-                Spacer()
-                HStack(spacing: 12) {
-                    Label(formatCount(playCount), systemImage: "play.fill")
-                    Label(formatCount(danmakuCount), systemImage: "text.bubble.fill")
-                }.font(.caption2).foregroundColor(themeManager.secondaryTextColor)
             }
         }
     }
@@ -63,6 +80,7 @@ struct VideoCardView: View {
 struct VideoCardGrid: View {
     let videos: [VideoItem]
     let columns: Int
+    @StateObject private var filter = FilterSettings.shared
 
     private var gridColumns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 12), count: columns)
@@ -71,6 +89,7 @@ struct VideoCardGrid: View {
     var body: some View {
         LazyVGrid(columns: gridColumns, spacing: 16) {
             ForEach(videos) { video in
+                let reason = filter.checkVideo(duration: video.duration, title: video.title)
                 VideoCardView(
                     coverUrl: video.pic,
                     title: video.title,
@@ -79,7 +98,8 @@ struct VideoCardGrid: View {
                     danmakuCount: video.stat?.danmakuCount ?? 0,
                     duration: video.duration,
                     bvid: video.bvid.isEmpty ? nil : video.bvid,
-                    cid: video.cid
+                    cid: video.cid,
+                    filterReason: reason
                 )
             }
         }

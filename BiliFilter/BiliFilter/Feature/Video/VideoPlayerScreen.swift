@@ -202,11 +202,17 @@ struct VideoPlayerScreen: View {
 
                 ForEach(Array(viewModel.replyItems.enumerated()), id: \.element.id) { idx, reply in
                     let subs = viewModel.expandedReplies[reply.rpid]
+                    let parentReason = CommentFilterSettings.shared.checkReply(
+                        content: reply.content.message,
+                        username: reply.member.uname,
+                        level: reply.member.levelInfo?.currentLevel
+                    )
                     ReplyRow(
                         reply: reply,
                         subReplies: subs,
                         isLoadingSub: viewModel.loadingSubReplies.contains(reply.rpid),
-                        onToggle: { viewModel.toggleSubReplies(for: reply.rpid) }
+                        onToggle: { viewModel.toggleSubReplies(for: reply.rpid) },
+                        filterReason: parentReason
                     )
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -345,10 +351,12 @@ struct ReplyRow: View {
     var subReplies: [ReplyItem]? = nil
     var isLoadingSub: Bool = false
     var onToggle: (() -> Void)? = nil
+    var filterReason: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                HStack(alignment: .top, spacing: 10) {
                 AsyncImage(url: URL(string: reply.member.avatarUrl)) { img in
                     img.resizable().aspectRatio(contentMode: .fill)
                 } placeholder: {
@@ -395,8 +403,21 @@ struct ReplyRow: View {
                         }
                     }
                 }
+                }
+                // 过滤遮罩
+                if let reason = filterReason {
+                    Color(.systemGray5)
+                    VStack(spacing: 4) {
+                        Image(systemName: "eye.slash.fill")
+                            .font(.caption).foregroundColor(.secondary)
+                        Text(reason)
+                            .font(.caption2).foregroundColor(.secondary)
+                    }
+                }
             }
 
+            // 子回复：如果主评论被屏蔽，子回复也不显示
+            if filterReason == nil {
             // 内嵌子回复预览（来自API返回的replies字段）
             if let embedded = reply.replies, !embedded.isEmpty, subReplies == nil {
                 VStack(alignment: .leading, spacing: 4) {
@@ -448,6 +469,7 @@ struct ReplyRow: View {
                 .padding(.leading, 44)
                 .padding(.top, 2)
             }
+            } // end if filterReason == nil (子回复)
         }
     }
 }

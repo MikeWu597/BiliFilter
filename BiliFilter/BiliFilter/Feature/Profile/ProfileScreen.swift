@@ -36,6 +36,17 @@ struct ProfileScreen: View {
                     }
                     .padding(.vertical, 4)
                 }
+
+                Section {
+                    NavigationLink(destination: FilterSettingsView()) {
+                        Label("视频过滤", systemImage: "line.3.horizontal.decrease.circle.fill")
+                            .foregroundColor(.orange)
+                    }
+                    NavigationLink(destination: CommentFilterSettingsView()) {
+                        Label("评论区过滤", systemImage: "text.bubble.fill")
+                            .foregroundColor(.blue)
+                    }
+                }
             }
             .navigationTitle("我的")
         }
