@@ -11,6 +11,7 @@ struct VideoCardView: View {
     var bvid: String?
     var cid: Int64?
     var filterReason: String?
+    var ownerMid: Int64?
 
     @EnvironmentObject private var themeManager: ThemeManager
 
@@ -70,7 +71,13 @@ struct VideoCardView: View {
                 .foregroundColor(themeManager.primaryTextColor)
                 .frame(maxHeight: 40, alignment: .top)
             HStack(spacing: 8) {
-                Text(upName).font(.caption).foregroundColor(themeManager.secondaryTextColor).lineLimit(1)
+                if let mid = ownerMid {
+                    NavigationLink(value: AppRoute.space(mid: mid)) {
+                        Text(upName).font(.caption).foregroundColor(themeManager.accentColor).lineLimit(1)
+                    }
+                } else {
+                    Text(upName).font(.caption).foregroundColor(themeManager.secondaryTextColor).lineLimit(1)
+                }
             }
         }
     }
@@ -99,7 +106,8 @@ struct VideoCardGrid: View {
                     duration: video.duration,
                     bvid: video.bvid.isEmpty ? nil : video.bvid,
                     cid: video.cid,
-                    filterReason: reason
+                    filterReason: reason,
+                    ownerMid: video.owner?.mid
                 )
             }
         }

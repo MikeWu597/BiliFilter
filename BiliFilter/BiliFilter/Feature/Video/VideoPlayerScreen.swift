@@ -164,16 +164,36 @@ struct VideoPlayerScreen: View {
             LazyVStack(alignment: .leading, spacing: 12, pinnedViews: []) {
                 if let info = viewModel.videoInfo {
                     Text(info.title ?? "").font(.headline).padding(.horizontal, 16).padding(.top, 12)
-                    HStack {
-                        BiliAvatar(url: info.owner?.face, size: 40)
-                        VStack(alignment: .leading) {
-                            Text(info.owner?.name ?? "").font(.subheadline).fontWeight(.medium)
-                            if let stat = info.stat {
-                                HStack(spacing: 12) {
-                                    Label(formatCount(stat.viewCount), systemImage: "play.fill")
-                                    Label(formatCount(stat.danmakuCount), systemImage: "text.bubble")
-                                    Label(formatCount(stat.likeCount), systemImage: "hand.thumbsup")
-                                }.font(.caption).foregroundColor(.secondary)
+                    Group {
+                        if let mid = info.owner?.mid {
+                            NavigationLink(value: AppRoute.space(mid: mid)) {
+                                HStack {
+                                    BiliAvatar(url: info.owner?.face, size: 40)
+                                    VStack(alignment: .leading) {
+                                        Text(info.owner?.name ?? "").font(.subheadline).fontWeight(.medium)
+                                        if let stat = info.stat {
+                                            HStack(spacing: 12) {
+                                                Label(formatCount(stat.viewCount), systemImage: "play.fill")
+                                                Label(formatCount(stat.danmakuCount), systemImage: "text.bubble")
+                                                Label(formatCount(stat.likeCount), systemImage: "hand.thumbsup")
+                                            }.font(.caption).foregroundColor(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            HStack {
+                                BiliAvatar(url: info.owner?.face, size: 40)
+                                VStack(alignment: .leading) {
+                                    Text(info.owner?.name ?? "").font(.subheadline).fontWeight(.medium)
+                                    if let stat = info.stat {
+                                        HStack(spacing: 12) {
+                                            Label(formatCount(stat.viewCount), systemImage: "play.fill")
+                                            Label(formatCount(stat.danmakuCount), systemImage: "text.bubble")
+                                            Label(formatCount(stat.likeCount), systemImage: "hand.thumbsup")
+                                        }.font(.caption).foregroundColor(.secondary)
+                                    }
+                                }
                             }
                         }
                     }.padding(.horizontal, 16)
@@ -184,7 +204,7 @@ struct VideoPlayerScreen: View {
                 if !viewModel.relatedVideos.isEmpty {
                     Text("相关推荐").font(.headline).padding(.horizontal, 16).padding(.top, 4)
                     ForEach(viewModel.relatedVideos) { video in
-                        VideoCardView(coverUrl: video.pic, title: video.title, upName: video.owner?.name ?? "", playCount: video.stat?.viewCount ?? 0, danmakuCount: video.stat?.danmakuCount ?? 0, duration: video.duration, bvid: video.bvid, cid: video.cid).padding(.horizontal, 16)
+                        VideoCardView(coverUrl: video.pic, title: video.title, upName: video.owner?.name ?? "", playCount: video.stat?.viewCount ?? 0, danmakuCount: video.stat?.danmakuCount ?? 0, duration: video.duration, bvid: video.bvid, cid: video.cid, ownerMid: video.owner?.mid).padding(.horizontal, 16)
                     }
                 }
                 // 评论区
@@ -367,10 +387,19 @@ struct ReplyRow: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(reply.member.uname)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
+                        if let mid = Int64(reply.member.mid) {
+                            NavigationLink(value: AppRoute.space(mid: mid)) {
+                                Text(reply.member.uname)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.accentColor)
+                            }
+                        } else {
+                            Text(reply.member.uname)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                        }
                         if let level = reply.member.levelInfo?.currentLevel, level > 0 {
                             Text("Lv\(level)")
                                 .font(.system(size: 10))
@@ -488,8 +517,15 @@ struct SubReplyRow: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(reply.member.uname)
-                            .font(.caption).foregroundColor(.accentColor)
+                        if let mid = Int64(reply.member.mid) {
+                            NavigationLink(value: AppRoute.space(mid: mid)) {
+                                Text(reply.member.uname)
+                                    .font(.caption).foregroundColor(.accentColor)
+                            }
+                        } else {
+                            Text(reply.member.uname)
+                                .font(.caption).foregroundColor(.accentColor)
+                        }
                         if let level = reply.member.levelInfo?.currentLevel, level > 0 {
                             Text("Lv\(level)")
                                 .font(.system(size: 8))

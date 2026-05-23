@@ -95,7 +95,7 @@ struct AppNavigation: View {
         case .bangumi: BangumiScreen()
         case .bangumiDetail: PlaceholderView(title: "番剧详情", icon: "tv.fill")
         case .bangumiPlayer: PlaceholderView(title: "番剧播放", icon: "play.tv")
-        case .space(let mid): PlaceholderView(title: "UP主空间", icon: "person.fill")
+        case .space(let mid): SpaceScreen(mid: mid)
         case .login: LoginScreen()
         case .web: PlaceholderView(title: "网页", icon: "safari")
         case .category: PlaceholderView(title: "分类", icon: "folder")

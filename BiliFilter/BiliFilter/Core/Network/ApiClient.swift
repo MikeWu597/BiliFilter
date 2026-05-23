@@ -142,7 +142,9 @@ actor ApiClient {
         var request = URLRequest(url: finalUrl)
         request.httpMethod = api.httpMethod
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+        if !needsWbi {
+            request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         // 注入Cookie
