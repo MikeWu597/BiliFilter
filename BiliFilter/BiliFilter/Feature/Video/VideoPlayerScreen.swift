@@ -10,6 +10,7 @@ struct VideoPlayerScreen: View {
     @State private var showDanmakuSettings = false
     @State private var showPageSelector = false
     @State private var showVideoTagSheet = false
+    @State private var tappedDanmaku: DanmakuItem?
 
     init(bvid: String, cid: Int64 = 0, aid: Int64 = 0) {
         _viewModel = StateObject(wrappedValue: PlayerViewModel(bvid: bvid, cid: cid, aid: aid))
@@ -37,6 +38,9 @@ struct VideoPlayerScreen: View {
         .sheet(isPresented: $showVideoTagSheet) {
             AddVideoTagSheet(bvid: viewModel.bvid, title: viewModel.videoInfo?.title ?? "")
         }
+        .sheet(item: $tappedDanmaku) { item in
+            DanmakuDetailSheet(item: item)
+        }
     }
 
     private var normalPlayer: some View {
@@ -47,7 +51,7 @@ struct VideoPlayerScreen: View {
                     if let player = viewModel.player {
                         VideoPlayerLayer(player: player)
                     }
-                    DanmakuRenderer(items: viewModel.danmakuItems, currentTime: viewModel.currentTime, alpha: viewModel.danmakuAlpha, fontScale: viewModel.danmakuFontScale, isEnabled: viewModel.danmakuEnabled, isPlaying: viewModel.isPlaying)
+                    DanmakuRenderer(items: viewModel.danmakuItems, currentTime: viewModel.currentTime, alpha: viewModel.danmakuAlpha, fontScale: viewModel.danmakuFontScale, isEnabled: viewModel.danmakuEnabled, isPlaying: viewModel.isPlaying, onTapDanmaku: { item in tappedDanmaku = item })
                     if viewModel.playerState == .loading {
                         ProgressView().tint(.white).scaleEffect(1.5)
                     }
@@ -72,7 +76,7 @@ struct VideoPlayerScreen: View {
                 if let player = viewModel.player {
                     VideoPlayerLayer(player: player)
                 }
-                DanmakuRenderer(items: viewModel.danmakuItems, currentTime: viewModel.currentTime, alpha: viewModel.danmakuAlpha, fontScale: viewModel.danmakuFontScale, isEnabled: viewModel.danmakuEnabled, isPlaying: viewModel.isPlaying)
+                DanmakuRenderer(items: viewModel.danmakuItems, currentTime: viewModel.currentTime, alpha: viewModel.danmakuAlpha, fontScale: viewModel.danmakuFontScale, isEnabled: viewModel.danmakuEnabled, isPlaying: viewModel.isPlaying, onTapDanmaku: { item in tappedDanmaku = item })
                 if viewModel.playerState == .loading {
                     ProgressView().tint(.white).scaleEffect(1.5)
                 }
@@ -691,6 +695,80 @@ private struct EmoteLabel: UIViewRepresentable {
             label?.attributedText = attr
             label?.invalidateIntrinsicContentSize()
         }
+    }
+}
+
+// MARK: - 弹幕详情弹窗
+struct DanmakuDetailSheet: View {
+    let item: DanmakuItem
+    @Environment(\.dismiss) private var dismiss
+    @State private var copied = false
+    @State private var resolvedMid: Int64?
+    @State private var isResolving = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Text(item.content)
+                    .font(.title3)
+                    .padding(.horizontal, 24)
+                    .multilineTextAlignment(.center)
+                HStack(spacing: 8) {
+                    Button {
+                        UIPasteboard.general.string = item.content
+                        copied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
+                    } label: {
+                        Label(copied ? "已复制" : "复制内容", systemImage: copied ? "checkmark" : "doc.on.doc")
+                            .font(.caption)
+                    }
+                }
+                VStack(spacing: 4) {
+                    Text("弹幕时间: \(String(format: "%.1f", item.time))s").font(.caption).foregroundColor(.secondary)
+                    if !item.userHash.isEmpty {
+                        if let mid = resolvedMid {
+                            NavigationLink(value: AppRoute.space(mid: mid)) {
+                                Label("UID: \(mid)", systemImage: "person.fill").font(.caption).foregroundColor(.accentColor)
+                            }
+                        } else if isResolving {
+                            HStack(spacing: 4) {
+                                ProgressView().scaleEffect(0.6)
+                                Text("正在查找用户...").font(.caption2).foregroundColor(.secondary)
+                            }
+                        } else {
+                            Text("发送者Hash: \(String(item.userHash.prefix(12)))...").font(.caption2).foregroundColor(.secondary)
+                        }
+                    }
+                }
+                HStack(spacing: 12) {
+                    if !item.userHash.isEmpty {
+                        Button {
+                            let set = DanmakuFilterSettings.shared
+                            if !set.keywords.contains(item.userHash) {
+                                set.keywords.append(item.userHash)
+                            }
+                            dismiss()
+                        } label: {
+                            Label("屏蔽此用户", systemImage: "eye.slash").font(.caption).foregroundColor(.red)
+                        }
+                    }
+                }
+                Spacer()
+            }
+            .padding(.top, 32)
+            .navigationTitle("弹幕详情")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
+            }
+            .task {
+                guard !item.userHash.isEmpty, resolvedMid == nil else { return }
+                isResolving = true
+                resolvedMid = await UserHashLookup.shared.lookup(item.userHash)
+                isResolving = false
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

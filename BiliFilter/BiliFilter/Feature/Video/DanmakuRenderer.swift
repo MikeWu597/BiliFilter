@@ -7,6 +7,7 @@ struct DanmakuItem: Identifiable {
     let content: String
     let color: Color
     let mode: Int
+    let userHash: String
 }
 
 // MARK: - 解析器
@@ -23,9 +24,10 @@ enum DanmakuParser {
             guard attrs.count >= 5 else { return }
             let t = Double(attrs[0]) ?? 0 // XML弹幕的time字段已经是秒
             let ci = Int(attrs[3]) ?? 0xFFFFFF
+            let uh = attrs.count > 6 ? attrs[6] : ""
             items.append(DanmakuItem(time: t, content: String(xml[c]),
                 color: Color(red: Double((ci>>16)&0xFF)/255, green: Double((ci>>8)&0xFF)/255, blue: Double(ci&0xFF)/255),
-                mode: Int(attrs[1]) ?? 1))
+                mode: Int(attrs[1]) ?? 1, userHash: uh))
         }
         return items.sorted { $0.time < $1.time }
     }
@@ -48,7 +50,7 @@ enum DanmakuParser {
                 }
             }
             if !content.isEmpty,progress>=0 { let t=Double(progress)/1000
-                items.append(DanmakuItem(time:t,content:content,color:Color(red:Double((color>>16)&0xFF)/255,green:Double((color>>8)&0xFF)/255,blue:Double(color&0xFF)/255),mode:Int(mode))) }
+                items.append(DanmakuItem(time:t,content:content,color:Color(red:Double((color>>16)&0xFF)/255,green:Double((color>>8)&0xFF)/255,blue:Double(color&0xFF)/255),mode:Int(mode),userHash:"")) }
             pos=end
         }
         return items.sorted { $0.time < $1.time }
@@ -64,6 +66,7 @@ struct DanmakuRenderer: UIViewRepresentable {
     let fontScale: Double
     let isEnabled: Bool
     let isPlaying: Bool
+    var onTapDanmaku: ((DanmakuItem) -> Void)?
 
     func makeUIView(context: Context) -> DanmakuCanvas { DanmakuCanvas() }
     func updateUIView(_ v: DanmakuCanvas, context: Context) {
@@ -72,6 +75,7 @@ struct DanmakuRenderer: UIViewRepresentable {
         v.danmakuAlpha = CGFloat(alpha)
         v.fontScale = CGFloat(fontScale)
         v.isEnabled = isEnabled
+        v.onTapDanmaku = onTapDanmaku
         if v.loadedItems.count != items.count { v.setItems(items) }
     }
 }
@@ -81,10 +85,13 @@ final class DanmakuCanvas: UIView {
     var fontScale: CGFloat = 1.0
     var isEnabled = true
     var playerPlaying = false
+    var onTapDanmaku: ((DanmakuItem) -> Void)?
 
     private var itemsByTime: [DanmakuItem] = []
     private var displayLink: CADisplayLink?
     private let scrollSec: Double = 7.0
+    // 记录当前帧弹幕位置用于点击检测
+    private var hitRects: [(item: DanmakuItem, rect: CGRect)] = []
 
     // 独立时钟: tick()里自增, playerTime来同步时校准
     private var engineTime: Double = 0
@@ -110,6 +117,9 @@ final class DanmakuCanvas: UIView {
         displayLink = CADisplayLink(target: self, selector: #selector(tick))
         displayLink?.preferredFramesPerSecond = 30
         displayLink?.add(to: .main, forMode: .common)
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        longPress.minimumPressDuration = 0.5
+        addGestureRecognizer(longPress)
     }
     required init?(coder: NSCoder) { fatalError() }
 
@@ -140,6 +150,18 @@ final class DanmakuCanvas: UIView {
         lastTickTime = now
     }
 
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        guard !playerPlaying else { return }
+        let point = gesture.location(in: self)
+        for h in hitRects.reversed() {
+            if h.rect.contains(point) {
+                onTapDanmaku?(h.item)
+                break
+            }
+        }
+    }
+
     override func draw(_ rect: CGRect) {
         guard let ctx = UIGraphicsGetCurrentContext(), isEnabled, playerPlaying else { return }
 
@@ -164,6 +186,7 @@ final class DanmakuCanvas: UIView {
         var rowUsed = [Bool](repeating: false, count: rowCount)
 
         var drawnCount = 0
+        hitRects.removeAll(keepingCapacity: true)
         for i in startIdx..<endIdx {
             let item = itemsByTime[i]
             let filtered = DanmakuFilterSettings.shared.shouldFilter(content: item.content)
@@ -183,6 +206,9 @@ final class DanmakuCanvas: UIView {
             }
             rowUsed[row] = true
             let y = CGFloat(row) * (font.lineHeight + 4) + font.lineHeight
+            // 记录点击区域
+            let fh = font.lineHeight
+            hitRects.append((item, CGRect(x: x - 4, y: y - fh - 2, width: 600, height: fh + 4)))
 
             if filtered {
                 let markColor = UIColor.gray.withAlphaComponent(CGFloat(danmakuAlpha))
