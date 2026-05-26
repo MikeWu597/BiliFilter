@@ -176,26 +176,31 @@ final class SpaceViewModel: ObservableObject {
             let resp: BiliApiResponse<SpaceUserInfo> = try await ApiClient.shared.request(.spaceInfo(mid: mid), needsWbi: true)
             print("[Space] info code=\(resp.code)")
             if resp.isSuccess, let data = resp.data {
-                print("[Space] raw: name=\(data.name ?? "nil") face=\(data.face?.prefix(30) ?? "nil") level=\(data.level ?? -1)")
                 userName = data.name ?? ""
                 face = data.face ?? ""
                 level = data.level
                 sign = data.sign ?? ""
+            } else {
+                print("[Space] info failed: code=\(resp.code) msg=\(resp.message)")
             }
         } catch {
             print("[Space] info error: \(error)")
+            errorMsg = "用户信息加载失败"
         }
-        // 单独获取关注/粉丝数
+        // 关注/粉丝数（带cookie）
         do {
-            let url = URL(string: "https://api.bilibili.com/x/relation/stat?vmid=\(mid)")!
-            var req = URLRequest(url: url)
-            req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", forHTTPHeaderField: "User-Agent")
-            let (data, _) = try await URLSession.shared.data(for: req)
+            var req = URLRequest(url: URL(string: "https://api.bilibili.com/x/relation/stat?vmid=\(mid)")!)
+            req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+            req.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+            if let sess = TokenManager.shared.sessdata, !sess.isEmpty {
+                req.setValue("SESSDATA=\(sess); buvid3=\(TokenManager.shared.buvid3)", forHTTPHeaderField: "Cookie")
+            }
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard (resp as? HTTPURLResponse)?.statusCode == 200 else { return }
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let d = json["data"] as? [String: Any] {
                 following = d["following"] as? Int ?? 0
                 followers = d["follower"] as? Int ?? 0
-                print("[Space] relation following=\(following) followers=\(followers)")
             }
         } catch {
             print("[Space] relation error: \(error)")
@@ -209,12 +214,16 @@ final class SpaceViewModel: ObservableObject {
             print("[Space] videos code=\(resp.code)")
             if resp.isSuccess, let data = resp.data {
                 let items = data.list?.vlist ?? []
-                print("[Space] got \(items.count) videos, pageCount=\(data.page?.count ?? 0)")
                 videos = items.map { $0.toVideoItem() }
                 hasMore = items.count >= 30
+                if items.isEmpty { errorMsg = "该用户暂无投稿" }
+            } else {
+                print("[Space] videos failed: code=\(resp.code)")
+                errorMsg = "投稿加载失败"
             }
         } catch {
             print("[Space] videos error: \(error)")
+            errorMsg = "投稿加载失败"
         }
     }
 

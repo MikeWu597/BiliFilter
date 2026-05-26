@@ -32,24 +32,25 @@ actor ApiClient {
 
     func ensureWbiKeys() async {
         guard !wbiKeysLoaded else { return }
-        // 先从缓存加载
-        if let cachedImg = UserDefaults.standard.string(forKey: "wbi_img_key"),
+        // 优先从网络刷新
+        do {
+            try await refreshWbiKeys()
+            return
+        } catch {
+            print("[ApiClient] WBI refresh failed: \(error), trying cache")
+        }
+        // 网络失败时用缓存（带时效检查）
+        let lastRefresh = UserDefaults.standard.double(forKey: "wbi_keys_ts")
+        let age = Date().timeIntervalSince1970 - lastRefresh
+        if age < 86400, // 24小时内有效
+           let cachedImg = UserDefaults.standard.string(forKey: "wbi_img_key"),
            let cachedSub = UserDefaults.standard.string(forKey: "wbi_sub_key"),
            !cachedImg.isEmpty, !cachedSub.isEmpty {
             self.imgKey = cachedImg; self.subKey = cachedSub
             self.wbiKeysLoaded = true
-        }
-        // 异步尝试刷新
-        do {
-            try await refreshWbiKeys()
-        } catch {
-            print("[ApiClient] WBI refresh failed: \(error)")
-            if !wbiKeysLoaded {
-                // 硬编码兜底密钥
-                self.imgKey = "7cd084941338484aae1ad9425b84077c"
-                self.subKey = "4932caff0ff746eab6f01bf08b70ac45"
-                self.wbiKeysLoaded = true
-            }
+            print("[ApiClient] WBI using cached keys (age: \(Int(age/3600))h)")
+        } else {
+            print("[ApiClient] WBI keys unavailable - cache expired or missing")
         }
     }
 
@@ -88,8 +89,15 @@ actor ApiClient {
             let sub = extractKeyFromUrl(wbi.sub_url)
             UserDefaults.standard.set(img, forKey: "wbi_img_key")
             UserDefaults.standard.set(sub, forKey: "wbi_sub_key")
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "wbi_keys_ts")
             self.imgKey = img; self.subKey = sub
             self.wbiKeysLoaded = true
+        } else if !wbiKeysLoaded {
+            // nav API返回了业务错误但没抛出异常，用硬编码兜底
+            self.imgKey = "7cd084941338484aae1ad9425b84077c"
+            self.subKey = "4932caff0ff746eab6f01bf08b70ac45"
+            self.wbiKeysLoaded = true
+            print("[ApiClient] WBI fallback to hardcoded keys")
         }
     }
 

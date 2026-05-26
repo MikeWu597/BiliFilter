@@ -290,7 +290,7 @@ extension BiliAPI {
         case .spaceInfo(let mid):
             return [URLQueryItem(name: "mid", value: String(mid))]
         case .spaceVideos(let mid, let pn, let ps):
-            return [URLQueryItem(name: "mid", value: String(mid)), URLQueryItem(name: "pn", value: String(pn)), URLQueryItem(name: "ps", value: String(ps))]
+            return [URLQueryItem(name: "mid", value: String(mid)), URLQueryItem(name: "pn", value: String(pn)), URLQueryItem(name: "ps", value: String(ps)), URLQueryItem(name: "order", value: "pubdate")]
         case .spaceDynamic(let mid, let pn, let ps):
             return [URLQueryItem(name: "host_mid", value: String(mid)), URLQueryItem(name: "pn", value: String(pn)), URLQueryItem(name: "ps", value: String(ps))]
         case .qrCodePoll(let qrcodeKey):

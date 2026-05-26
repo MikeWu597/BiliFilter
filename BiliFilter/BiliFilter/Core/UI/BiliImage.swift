@@ -75,6 +75,7 @@ struct BiliAvatar: View {
     var size: CGFloat = 40
 
     @State private var image: UIImage?
+    @State private var loadFailed = false
 
     var body: some View {
         Group {
@@ -88,8 +89,13 @@ struct BiliAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .task {
+        .task(id: url) {
+            guard let url else { return }
             image = await BiliImageLoader.shared.load(url)
+            if image == nil, !loadFailed {
+                loadFailed = true
+                print("[Image] avatar load failed: \(url.prefix(50))")
+            }
         }
     }
 }
