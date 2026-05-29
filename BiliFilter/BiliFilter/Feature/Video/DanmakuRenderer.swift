@@ -190,6 +190,7 @@ final class DanmakuCanvas: UIView {
         for i in startIdx..<endIdx {
             let item = itemsByTime[i]
             let filtered = DanmakuFilterSettings.shared.shouldFilter(content: item.content)
+            if filtered { FilteredLog.shared.logDanmaku(content: item.content, time: item.time, mode: item.mode, colorHex: "FFFFFF", userHash: item.userHash, reason: "关键词匹配") }
             let elapsed = t - item.time
             // 硬守卫：不在可见时间窗内直接跳过
             guard elapsed >= -0.5 && elapsed <= scrollSec else { continue }

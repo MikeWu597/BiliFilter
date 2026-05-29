@@ -35,17 +35,36 @@ final class FilterSettings: ObservableObject {
         titleEnabled = defaults.object(forKey: "filter_title_enabled") as? Bool ?? false
     }
 
-    func checkVideo(duration: Int, title: String, ownerMid: Int64? = nil) -> String? {
-        if let mid = ownerMid, let reason = UIDFilterSettings.shared.check(mid: mid) { return reason }
+    func checkVideo(duration: Int, title: String, ownerMid: Int64?, ownerName: String = "", bvid: String = "", coverUrl: String = "") -> String? {
+        if let mid = ownerMid, let reason = UIDFilterSettings.shared.check(mid: mid) {
+            FilteredLog.shared.logUID(mid: mid, uname: ownerName, level: nil, sign: "", reason: reason)
+            return reason
+        }
         if durationEnabled {
             let d = Double(duration)
-            if d < durationMin { return "时长过短(< \(Int(durationMin))s)" }
-            if d > durationMax { return "时长过长(> \(Int(durationMax))s)" }
+            if d < durationMin {
+                let reason = "时长过短(< \(Int(durationMin))s)"
+                FilteredLog.shared.logVideo(bvid: bvid, title: title, duration: duration, ownerName: ownerName, ownerMid: ownerMid ?? 0, coverUrl: coverUrl, reason: reason)
+                return reason
+            }
+            if d > durationMax {
+                let reason = "时长过长(> \(Int(durationMax))s)"
+                FilteredLog.shared.logVideo(bvid: bvid, title: title, duration: duration, ownerName: ownerName, ownerMid: ownerMid ?? 0, coverUrl: coverUrl, reason: reason)
+                return reason
+            }
         }
         if titleEnabled {
             let c = title.count
-            if c < titleMin { return "标题过短(< \(titleMin)字)" }
-            if c > titleMax { return "标题过长(> \(titleMax)字)" }
+            if c < titleMin {
+                let reason = "标题过短(< \(titleMin)字)"
+                FilteredLog.shared.logVideo(bvid: bvid, title: title, duration: duration, ownerName: ownerName, ownerMid: ownerMid ?? 0, coverUrl: coverUrl, reason: reason)
+                return reason
+            }
+            if c > titleMax {
+                let reason = "标题过长(> \(titleMax)字)"
+                FilteredLog.shared.logVideo(bvid: bvid, title: title, duration: duration, ownerName: ownerName, ownerMid: ownerMid ?? 0, coverUrl: coverUrl, reason: reason)
+                return reason
+            }
         }
         return nil
     }

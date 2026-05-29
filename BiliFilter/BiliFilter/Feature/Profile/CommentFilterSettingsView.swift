@@ -63,27 +63,22 @@ final class CommentFilterSettings: ObservableObject {
     }
 
     /// 返回屏蔽原因，nil表示不屏蔽
-    func checkReply(content: String, username: String, level: Int?, mid: Int64? = nil) -> String? {
-        if let mid, let reason = UIDFilterSettings.shared.check(mid: mid) { return reason }
-        if levelFilterEnabled, let lv = level {
-            if !selectedLevels.contains(lv) { return "用户等级 Lv\(lv) 已过滤" }
-        }
-        if keywordFilterEnabled {
-            for kw in keywords where !kw.isEmpty {
-                if content.localizedCaseInsensitiveContains(kw) { return "关键词「\(kw)」" }
-            }
-        }
-        if nameFilterEnabled {
-            for nk in nameKeywords where !nk.isEmpty {
-                if username.localizedCaseInsensitiveContains(nk) { return "用户名「\(nk)」" }
-            }
-        }
-        if lengthFilterEnabled {
+    func checkReply(content: String, username: String, level: Int?, mid: Int64? = nil, rpid: Int64 = 0, like: Int = 0, reply: Int = 0) -> String? {
+        let reason: String?
+        if let mid, let r = UIDFilterSettings.shared.check(mid: mid) { reason = r }
+        else if levelFilterEnabled, let lv = level, !selectedLevels.contains(lv) { reason = "用户等级 Lv\(lv) 已过滤" }
+        else if keywordFilterEnabled, let kw = keywords.first(where: { !$0.isEmpty && content.localizedCaseInsensitiveContains($0) }) { reason = "关键词「\(kw)」" }
+        else if nameFilterEnabled, let nk = nameKeywords.first(where: { !$0.isEmpty && username.localizedCaseInsensitiveContains($0) }) { reason = "用户名「\(nk)」" }
+        else if lengthFilterEnabled {
             let c = content.count
-            if c < lengthMin { return "内容过短(\(c)字)" }
-            if c > lengthMax { return "内容过长(\(c)字)" }
+            if c < lengthMin { reason = "内容过短(\(c)字)" }
+            else if c > lengthMax { reason = "内容过长(\(c)字)" }
+            else { reason = nil }
+        } else { reason = nil }
+        if let reason {
+            FilteredLog.shared.logComment(rpid: rpid, content: content, username: username, userMid: mid ?? 0, level: level, like: like, reply: reply, reason: reason)
         }
-        return nil
+        return reason
     }
 }
 

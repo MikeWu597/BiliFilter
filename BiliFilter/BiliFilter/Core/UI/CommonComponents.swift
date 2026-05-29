@@ -112,7 +112,7 @@ struct VideoCardGrid: View {
     var body: some View {
         LazyVGrid(columns: gridColumns, spacing: 16) {
             ForEach(videos) { video in
-                let reason = filter.checkVideo(duration: video.duration, title: video.title, ownerMid: video.owner?.mid)
+                let reason = filter.checkVideo(duration: video.duration, title: video.title, ownerMid: video.owner?.mid, ownerName: video.owner?.name ?? "", bvid: video.bvid, coverUrl: video.pic)
                 VideoCardView(
                     coverUrl: video.pic,
                     title: video.title,

@@ -540,7 +540,10 @@ struct SubReplyRow: View {
             content: reply.content.message,
             username: reply.member.uname,
             level: reply.member.levelInfo?.currentLevel,
-            mid: Int64(reply.member.mid)
+            mid: Int64(reply.member.mid),
+            rpid: reply.rpid,
+            like: reply.likeCount,
+            reply: reply.replyCount
         )
     }
 
