@@ -188,7 +188,7 @@ final class PlayerViewModel: ObservableObject {
             do {
                 // 加载轨道
                 let videoTracks = try await videoAsset.loadTracks(withMediaType: .video)
-                let audioTracks = try await audioAsset.loadTracks(withMediaType: .audio)
+                let separateAudioTracks = try await audioAsset.loadTracks(withMediaType: .audio)
                 let videoDuration = try await videoAsset.load(.duration)
 
                 guard let vTrack = videoTracks.first else {
@@ -197,9 +197,19 @@ final class PlayerViewModel: ObservableObject {
                 let compVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
                 try compVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: videoDuration), of: vTrack, at: .zero)
 
-                if let aTrack = audioTracks.first {
+                // 检查视频流是否自带音轨（部分CDN节点返回含音轨的视频流）
+                let videoAudioTracks = try await videoAsset.loadTracks(withMediaType: .audio)
+                let hasVideoAudio = !videoAudioTracks.isEmpty
+                print("[Player] DASH videoAsset hasAudio=\(hasVideoAudio), separateAudio=\(!separateAudioTracks.isEmpty)")
+
+                if hasVideoAudio {
+                    // 视频流自带音轨：不添加独立音轨，避免双音频叠加
+                    print("[Player] DASH using video-embedded audio (skipping separate audio track)")
+                } else if let aTrack = separateAudioTracks.first {
+                    // 视频流无声轨：添加独立音轨
                     let compAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
                     try compAudioTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: videoDuration), of: aTrack, at: .zero)
+                    print("[Player] DASH using separate audio track")
                 }
 
                 let item = AVPlayerItem(asset: composition)
@@ -220,7 +230,7 @@ final class PlayerViewModel: ObservableObject {
                 addTimeObserver()
                 p.play()
                 isPlaying = true
-                print("[Player] DASH playback started (video+audio merged)")
+                print("[Player] DASH playback started")
             } catch {
                 print("[Player] DASH composition failed: \(error), trying video-only...")
                 startPlayback(url: videoUrl)

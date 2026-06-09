@@ -119,7 +119,7 @@ final class FilterSettings: ObservableObject {
         taggedVideoFilterEnabled = defaults.object(forKey: "filter_tagged_video") as? Bool ?? false
     }
 
-    func checkVideo(duration: Int, title: String, ownerMid: Int64?, ownerName: String = "", bvid: String = "", coverUrl: String = "") -> String? {
+    func checkVideo(duration: Int, title: String, ownerMid: Int64?, ownerName: String = "", bvid: String = "", coverUrl: String = "", recordAppear: Bool = true) -> String? {
         // 0. 标记用户过滤（不记录日志）
         if taggedUserFilterEnabled, let mid = ownerMid {
             let tags = UserTagManager.shared.tagsForUser(mid: mid)
@@ -182,9 +182,11 @@ final class FilterSettings: ObservableObject {
             }
         }
 
-        // 5. 首页出现次数过滤
+        // 5. 首页出现次数过滤（仅在首页记录，搜索不计入）
         if appearCountEnabled, !bvid.isEmpty {
-            let count = AppearCountTracker.shared.recordAppear(bvid: bvid)
+            let count = recordAppear
+                ? AppearCountTracker.shared.recordAppear(bvid: bvid)
+                : AppearCountTracker.shared.getCount(for: bvid)
             if count > maxAppearCount {
                 let reason = "首页出现\(count)次(> \(maxAppearCount))"
                 FilteredLog.shared.logVideo(bvid: bvid, title: title, duration: duration, ownerName: ownerName, ownerMid: ownerMid ?? 0, coverUrl: coverUrl, reason: reason)

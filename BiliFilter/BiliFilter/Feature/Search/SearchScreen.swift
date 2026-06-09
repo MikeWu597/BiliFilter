@@ -77,7 +77,8 @@ struct SearchScreen: View {
                                 ownerMid: item.mid,
                                 ownerName: item.author ?? "",
                                 bvid: item.bvid ?? "",
-                                coverUrl: item.normalizedCoverUrl
+                                coverUrl: item.normalizedCoverUrl,
+                                recordAppear: false
                             )
                             if let reason = filterReason {
                                 // 被过滤的视频：不显示封面，用灰色遮罩
@@ -144,13 +145,13 @@ struct FilteredSearchRow: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.cleanedTitle)
-                    .font(.subheadline)
-                    .foregroundColor(themeManager.secondaryTextColor)
-                    .lineLimit(1)
                 Text("已过滤")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                Text(reason)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
             }
         }
         .padding(8)

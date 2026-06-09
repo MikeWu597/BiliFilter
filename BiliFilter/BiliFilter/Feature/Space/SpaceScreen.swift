@@ -113,7 +113,7 @@ struct SpaceScreen: View {
             } else if !viewModel.videos.isEmpty {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 16) {
                     ForEach(viewModel.videos) { video in
-                        let reason = FilterSettings.shared.checkVideo(duration: video.duration, title: video.title, ownerMid: video.owner?.mid, ownerName: video.owner?.name ?? "", bvid: video.bvid, coverUrl: video.pic)
+                        let reason = FilterSettings.shared.checkVideo(duration: video.duration, title: video.title, ownerMid: video.owner?.mid, ownerName: video.owner?.name ?? "", bvid: video.bvid, coverUrl: video.pic, recordAppear: false)
                         VideoCardView(
                             coverUrl: video.pic,
                             title: video.title,

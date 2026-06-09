@@ -109,10 +109,29 @@ struct VideoCardGrid: View {
         Array(repeating: GridItem(.flexible(), spacing: 12), count: columns)
     }
 
+    // 预计算过滤结果（只调用一次 checkVideo），未过滤的排在前面
+    private var videoFilterResults: [(video: VideoItem, reason: String?)] {
+        var results: [(video: VideoItem, reason: String?)] = []
+        for video in videos {
+            let reason = filter.checkVideo(
+                duration: video.duration,
+                title: video.title,
+                ownerMid: video.owner?.mid,
+                ownerName: video.owner?.name ?? "",
+                bvid: video.bvid,
+                coverUrl: video.pic
+            )
+            results.append((video, reason))
+        }
+        results.sort { ($0.reason == nil ? 0 : 1) < ($1.reason == nil ? 0 : 1) }
+        return results
+    }
+
     var body: some View {
         LazyVGrid(columns: gridColumns, spacing: 16) {
-            ForEach(videos) { video in
-                let reason = filter.checkVideo(duration: video.duration, title: video.title, ownerMid: video.owner?.mid, ownerName: video.owner?.name ?? "", bvid: video.bvid, coverUrl: video.pic)
+            ForEach(videoFilterResults, id: \.video.id) { entry in
+                let video = entry.video
+                let reason = entry.reason
                 VideoCardView(
                     coverUrl: video.pic,
                     title: video.title,
