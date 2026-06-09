@@ -258,40 +258,21 @@ actor ApiClient {
 
     private func injectCookies(into request: inout URLRequest) {
         guard useCookies, let url = request.url else { return }
-        var cookies: [HTTPCookie] = []
 
-        // buvid3
         let buvid3 = TokenManager.shared.buvid3
-        if let cookie = HTTPCookie(properties: [
-            .domain: url.host ?? "bilibili.com",
-            .path: "/",
-            .name: "buvid3",
-            .value: buvid3,
-        ]) { cookies.append(cookie) }
+        let sessdata = TokenManager.shared.sessdata
+        let csrf = TokenManager.shared.csrf
 
-        // SESSDATA
-        if let sessdata = TokenManager.shared.sessdata, !sessdata.isEmpty {
-            if let cookie = HTTPCookie(properties: [
-                .domain: "bilibili.com",
-                .path: "/",
-                .name: "SESSDATA",
-                .value: sessdata,
-            ]) { cookies.append(cookie) }
-        }
+        // 手动拼接Cookie header，避免HTTPCookie.requestHeaderFields的域匹配过滤导致子域名请求丢失Cookie
+        var cookieParts: [String] = []
+        cookieParts.append("buvid3=\(buvid3)")
+        if let s = sessdata, !s.isEmpty { cookieParts.append("SESSDATA=\(s)") }
+        if let c = csrf, !c.isEmpty { cookieParts.append("bili_jct=\(c)") }
+        request.setValue(cookieParts.joined(separator: "; "), forHTTPHeaderField: "Cookie")
 
-        // bili_jct
-        if let csrf = TokenManager.shared.csrf, !csrf.isEmpty {
-            if let cookie = HTTPCookie(properties: [
-                .domain: "bilibili.com",
-                .path: "/",
-                .name: "bili_jct",
-                .value: csrf,
-            ]) { cookies.append(cookie) }
-        }
-
-        let headers = HTTPCookie.requestHeaderFields(with: cookies)
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
+        // 对首页/推荐请求打印登录态
+        if request.url?.path.contains("rcmd") == true || request.url?.path.contains("feed") == true {
+            print("[ApiClient] 🍪 hasSESSDATA=\(sessdata?.isEmpty == false), mid=\(TokenManager.shared.mid), isLoggedIn=\(TokenManager.shared.isLoggedIn)")
         }
     }
 

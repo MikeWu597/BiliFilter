@@ -72,6 +72,15 @@ struct UserTagsView: View {
     var body: some View {
         List {
             Section {
+                Toggle("屏蔽已标记用户", isOn: Binding(
+                    get: { FilterSettings.shared.taggedUserFilterEnabled },
+                    set: { FilterSettings.shared.taggedUserFilterEnabled = $0 }
+                ))
+            } footer: {
+                Text("开启后，已标记用户的视频将在首页和搜索结果中被屏蔽")
+            }
+
+            Section {
                 HStack {
                     TextField("新建标记名称", text: $newTagName)
                     Button("添加") {

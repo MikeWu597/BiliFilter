@@ -66,6 +66,38 @@ enum DataPortManager {
             let rule: [String: Any] = ["type": "title", "min": settings.titleMin, "max": settings.titleMax]
             try JSONSerialization.data(withJSONObject: rule).write(to: sub.appendingPathComponent("rule.json"))
         }
+
+        // 标题关键词过滤
+        if settings.keywordFilterEnabled {
+            let sub = dir.appendingPathComponent("标题关键词过滤")
+            try fm.createDirectory(at: sub, withIntermediateDirectories: true)
+            let rule: [String: Any] = ["type": "title_keyword", "keywords": settings.titleKeywords]
+            try JSONSerialization.data(withJSONObject: rule).write(to: sub.appendingPathComponent("rule.json"))
+        }
+
+        // 首页出现次数过滤
+        if settings.appearCountEnabled {
+            let sub = dir.appendingPathComponent("首页出现次数过滤")
+            try fm.createDirectory(at: sub, withIntermediateDirectories: true)
+            let rule: [String: Any] = ["type": "appear_count", "max": settings.maxAppearCount]
+            try JSONSerialization.data(withJSONObject: rule).write(to: sub.appendingPathComponent("rule.json"))
+            // 导出出现次数数据
+            let counts = await MainActor.run { AppearCountTracker.shared.rawCounts }
+            let csv = "bvid,count\n" + counts.map { "\($0.key),\($0.value)" }.joined(separator: "\n")
+            try csv.write(to: sub.appendingPathComponent("appear_counts.csv"), atomically: true, encoding: .utf8)
+        }
+
+        // 标记过滤（仅导出开关状态，标记数据由用户标记/视频标记模块导出）
+        if settings.taggedUserFilterEnabled || settings.taggedVideoFilterEnabled {
+            let sub = dir.appendingPathComponent("标记过滤")
+            try fm.createDirectory(at: sub, withIntermediateDirectories: true)
+            let rule: [String: Any] = [
+                "type": "tagged",
+                "taggedUser": settings.taggedUserFilterEnabled,
+                "taggedVideo": settings.taggedVideoFilterEnabled
+            ]
+            try JSONSerialization.data(withJSONObject: rule).write(to: sub.appendingPathComponent("rule.json"))
+        }
     }
 
     private static func exportCommentFilters(to root: URL) async throws {
@@ -168,6 +200,58 @@ enum DataPortManager {
         let dir = root.appendingPathComponent("视频过滤")
         guard fm.fileExists(atPath: dir.path) else { return }
         await MainActor.run { FilteredLog.shared.videoLog.removeAll() }
+
+        // 导入标题关键词过滤
+        let kwDir = dir.appendingPathComponent("标题关键词过滤")
+        if fm.fileExists(atPath: kwDir.path) {
+            let ruleFile = kwDir.appendingPathComponent("rule.json")
+            if let data = try? Data(contentsOf: ruleFile),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let keywords = json["keywords"] as? [String] {
+                await MainActor.run {
+                    FilterSettings.shared.titleKeywords = keywords
+                    FilterSettings.shared.keywordFilterEnabled = true
+                }
+            }
+        }
+
+        // 导入首页出现次数过滤
+        let acDir = dir.appendingPathComponent("首页出现次数过滤")
+        if fm.fileExists(atPath: acDir.path) {
+            let ruleFile = acDir.appendingPathComponent("rule.json")
+            if let data = try? Data(contentsOf: ruleFile),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let max = json["max"] as? Int {
+                await MainActor.run {
+                    FilterSettings.shared.maxAppearCount = max
+                    FilterSettings.shared.appearCountEnabled = true
+                }
+            }
+            let csvFile = acDir.appendingPathComponent("appear_counts.csv")
+            if let content = try? String(contentsOf: csvFile, encoding: .utf8) {
+                var counts: [String: Int] = [:]
+                for line in content.components(separatedBy: "\n").dropFirst() where !line.isEmpty {
+                    let cols = line.components(separatedBy: ",")
+                    if cols.count >= 2, let count = Int(cols[1]) {
+                        counts[cols[0]] = count
+                    }
+                }
+                await MainActor.run { AppearCountTracker.shared.importCounts(counts) }
+            }
+        }
+
+        // 导入标记过滤开关
+        let tagDir = dir.appendingPathComponent("标记过滤")
+        if fm.fileExists(atPath: tagDir.path) {
+            let ruleFile = tagDir.appendingPathComponent("rule.json")
+            if let data = try? Data(contentsOf: ruleFile),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                await MainActor.run {
+                    FilterSettings.shared.taggedUserFilterEnabled = json["taggedUser"] as? Bool ?? false
+                    FilterSettings.shared.taggedVideoFilterEnabled = json["taggedVideo"] as? Bool ?? false
+                }
+            }
+        }
     }
 
     private static func importCommentFilters(from root: URL) async throws {
