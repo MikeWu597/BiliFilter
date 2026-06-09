@@ -265,8 +265,15 @@ extension BiliAPI {
             return [URLQueryItem(name: "season_id", value: String(seasonId)), URLQueryItem(name: "ep_id", value: String(epId))]
         case .search(let keyword, let page, let pageSize):
             return [
-                URLQueryItem(name: "keyword", value: keyword), URLQueryItem(name: "page", value: String(page)),
-                URLQueryItem(name: "page_size", value: String(pageSize)), URLQueryItem(name: "search_type", value: "video"),
+                URLQueryItem(name: "keyword", value: keyword),
+                URLQueryItem(name: "search_type", value: "video"),
+                URLQueryItem(name: "order", value: "totalrank"),
+                URLQueryItem(name: "duration", value: "0"),
+                URLQueryItem(name: "tids", value: "0"),
+                URLQueryItem(name: "page", value: String(page)),
+                URLQueryItem(name: "page_size", value: String(pageSize)),
+                URLQueryItem(name: "platform", value: "pc"),
+                URLQueryItem(name: "web_location", value: "1430654"),
             ]
         case .searchSuggest(let keyword):
             return [URLQueryItem(name: "term", value: keyword)]

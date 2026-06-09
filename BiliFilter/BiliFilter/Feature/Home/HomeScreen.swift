@@ -47,8 +47,9 @@ struct HomeTopBar: View {
                 Text("BiliFilter").font(.title3).fontWeight(.bold).foregroundColor(themeManager.accentColor)
             }
             Spacer()
-            Image(systemName: "magnifyingglass").font(.title3).foregroundColor(.secondary)
-            Image(systemName: "person.circle.fill").font(.title3).foregroundColor(.secondary)
+            NavigationLink(value: AppRoute.search) {
+                Image(systemName: "magnifyingglass").font(.title3).foregroundColor(.secondary)
+            }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .background(.regularMaterial)

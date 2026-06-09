@@ -3,21 +3,26 @@ import SwiftUI
 struct SearchScreen: View {
     @StateObject private var viewModel = SearchViewModel()
     @EnvironmentObject private var themeManager: ThemeManager
+    @Environment(\.dismiss) private var dismiss
     @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             // 搜索栏
-            HStack(spacing: 12) {
-                HStack {
+            HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(themeManager.secondaryTextColor)
-                    TextField("搜索视频、UP主、番剧", text: $viewModel.query)
+                    TextField("搜索视频", text: $viewModel.query)
                         .focused($isFocused)
                         .submitLabel(.search)
                         .onSubmit { Task { await viewModel.search() } }
                     if !viewModel.query.isEmpty {
-                        Button { viewModel.query = "" } label: {
+                        Button {
+                            viewModel.query = ""
+                            viewModel.results = []
+                            viewModel.errorMessage = nil
+                        } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(.gray)
                         }
@@ -27,107 +32,145 @@ struct SearchScreen: View {
                 .background(themeManager.systemGrayBackground)
                 .cornerRadius(10)
 
-                Button("取消") { }
-                    .foregroundColor(themeManager.accentColor)
-                    .font(.subheadline)
+                Button("搜索") {
+                    isFocused = false
+                    Task { await viewModel.search() }
+                }
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(themeManager.accentColor)
+                .cornerRadius(8)
+                .disabled(viewModel.query.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
 
-            if viewModel.results.isEmpty {
-                // 热搜 + 历史
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if !viewModel.searchHistory.isEmpty {
-                            HStack {
-                                Text("搜索历史")
-                                    .font(.headline)
-                                    .foregroundColor(themeManager.primaryTextColor)
-                                Spacer()
-                                Button("清空") { viewModel.clearHistory() }
-                                    .font(.caption)
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                            }
-                            .padding(.horizontal, 16)
-
-                            FlowLayout(spacing: 8) {
-                                ForEach(viewModel.searchHistory, id: \.self) { term in
-                                    Button {
-                                        viewModel.query = term
-                                        Task { await viewModel.search() }
-                                    } label: {
-                                        Text(term)
-                                            .font(.subheadline)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(themeManager.surfaceColor)
-                                            .cornerRadius(14)
-                                            .foregroundColor(themeManager.primaryTextColor)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                        }
-
-                        Text("热搜")
-                            .font(.headline)
-                            .foregroundColor(themeManager.primaryTextColor)
-                            .padding(.horizontal, 16)
-
-                        ForEach(Array(viewModel.hotSearches.enumerated()), id: \.offset) { index, item in
-                            Button {
-                                viewModel.query = item
-                                Task { await viewModel.search() }
-                            } label: {
-                                HStack {
-                                    Text("\(index + 1)")
-                                        .font(.subheadline)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(index < 3 ? .red : themeManager.secondaryTextColor)
-                                        .frame(width: 24)
-                                    Text(item)
-                                        .font(.subheadline)
-                                        .foregroundColor(themeManager.primaryTextColor)
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                            }
-                        }
-                    }
-                    .padding(.top, 16)
+            // 内容区
+            if viewModel.isLoading && viewModel.results.isEmpty {
+                Spacer()
+                ProgressView()
+                    .tint(themeManager.accentColor)
+                Spacer()
+            } else if let error = viewModel.errorMessage, viewModel.results.isEmpty {
+                Spacer()
+                VStack(spacing: 16) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 40))
+                        .foregroundColor(.secondary)
+                    Text(error)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-            } else {
+                Spacer()
+            } else if !viewModel.results.isEmpty {
                 // 搜索结果
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(viewModel.results, id: \.id) { item in
-                            SearchResultRow(item: item)
+                        ForEach(viewModel.results.indices, id: \.self) { i in
+                            let item = viewModel.results[i]
+                            let filterReason = FilterSettings.shared.checkVideo(
+                                duration: item.durationSeconds,
+                                title: item.cleanedTitle,
+                                ownerMid: item.mid,
+                                ownerName: item.author ?? "",
+                                bvid: item.bvid ?? "",
+                                coverUrl: item.normalizedCoverUrl
+                            )
+                            if let reason = filterReason {
+                                // 被过滤的视频：不显示封面，用灰色遮罩
+                                FilteredSearchRow(item: item, reason: reason)
+                            } else if let bvid = item.bvid, !bvid.isEmpty {
+                                NavigationLink(value: AppRoute.videoPlayer(bvid: bvid)) {
+                                    SearchResultRow(item: item)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                SearchResultRow(item: item)
+                            }
                         }
-                        if viewModel.hasMoreResults {
+                        if viewModel.hasMoreResults && !viewModel.isLoading {
                             ProgressView()
+                                .padding(.vertical, 8)
                                 .onAppear { Task { await viewModel.loadMore() } }
                         }
                     }
                     .padding(12)
                 }
+            } else {
+                // 初始空状态
+                Spacer()
+                VStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 40))
+                        .foregroundColor(.secondary)
+                    Text("输入关键词搜索视频")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
             }
         }
         .background(themeManager.backgroundColor)
-        .task { await viewModel.loadHotSearches() }
+        .navigationTitle("搜索")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { isFocused = true }
     }
 }
 
+// MARK: - 被过滤的搜索结果行
+struct FilteredSearchRow: View {
+    let item: SearchResultItem
+    let reason: String
+    @EnvironmentObject private var themeManager: ThemeManager
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Color(.systemGray5)
+                    .frame(width: 140, height: 88)
+                    .cornerRadius(8)
+                VStack(spacing: 4) {
+                    Image(systemName: "eye.slash.fill")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(reason)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.cleanedTitle)
+                    .font(.subheadline)
+                    .foregroundColor(themeManager.secondaryTextColor)
+                    .lineLimit(1)
+                Text("已过滤")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(8)
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
+    }
+}
+
+// MARK: - 搜索结果行
 struct SearchResultRow: View {
     let item: SearchResultItem
     @EnvironmentObject private var themeManager: ThemeManager
 
     var body: some View {
         HStack(spacing: 12) {
-            BiliCover(url: item.pic).frame(width: 140, height: 88)
+            BiliCover(url: item.normalizedCoverUrl)
+                .frame(width: 140, height: 88)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title ?? "")
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.cleanedTitle)
                     .font(.subheadline)
                     .foregroundColor(themeManager.primaryTextColor)
                     .lineLimit(2)
@@ -135,8 +178,11 @@ struct SearchResultRow: View {
                     .font(.caption)
                     .foregroundColor(themeManager.secondaryTextColor)
                 HStack(spacing: 12) {
-                    Label("\(item.play ?? 0)", systemImage: "play.fill")
-                    Label("\(item.danmaku ?? 0)", systemImage: "text.bubble")
+                    Label(formatCount(item.playCount), systemImage: "play.fill")
+                    Label(formatCount(item.danmakuCount), systemImage: "text.bubble")
+                    if item.durationSeconds > 0 {
+                        Label(formatSeconds(item.durationSeconds), systemImage: "clock")
+                    }
                 }
                 .font(.caption2)
                 .foregroundColor(themeManager.tertiaryTextColor)
@@ -181,5 +227,7 @@ struct FlowLayout: Layout {
 }
 
 #Preview {
-    SearchScreen().environmentObject(ThemeManager.shared)
+    NavigationStack {
+        SearchScreen().environmentObject(ThemeManager.shared)
+    }
 }

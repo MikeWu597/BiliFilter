@@ -26,7 +26,7 @@ enum WbiSign {
         return value.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
     }
 
-    private static func encodeURIComponent(_ value: String) -> String {
+    static func encodeURIComponent(_ value: String) -> String {
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "!*'();:@&=+$,/?%#[]")
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value

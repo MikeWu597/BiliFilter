@@ -359,7 +359,67 @@ struct SearchResultItem: Codable {
     let pubdate: Int64?
     let play: Int?
     let danmaku: Int?
-    enum CodingKeys: String, CodingKey { case type, id, bvid, aid, title, author, mid, pic, duration, pubdate, play, danmaku }
+    // B站API用 video_review 表示弹幕数
+    let video_review: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case type, id, bvid, aid, title, author, mid, pic, duration, pubdate, play, danmaku
+        case video_review
+    }
+
+    /// 清理HTML标签和转义字符
+    var cleanedTitle: String {
+        guard let t = title else { return "" }
+        return t
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+    }
+
+    /// 解析时长字符串(如 "12:34" 或纯秒数)为Int秒
+    var durationSeconds: Int {
+        guard let dur = duration, !dur.isEmpty else { return 0 }
+        // 纯数字
+        if let sec = Int(dur) { return sec }
+        let parts = dur.components(separatedBy: ":")
+        if parts.count == 2, let m = Int(parts[0]), let s = Int(parts[1]) {
+            return m * 60 + s
+        }
+        if parts.count == 3, let h = Int(parts[0]), let m = Int(parts[1]), let s = Int(parts[2]) {
+            return h * 3600 + m * 60 + s
+        }
+        return 0
+    }
+
+    var playCount: Int { play ?? 0 }
+    var danmakuCount: Int { danmaku ?? video_review ?? 0 }
+
+    var normalizedCoverUrl: String {
+        guard let pic = pic else { return "" }
+        if pic.hasPrefix("//") { return "https:\(pic)" }
+        if pic.hasPrefix("http://") { return pic.replacingOccurrences(of: "http://", with: "https://") }
+        return pic
+    }
+
+    func toVideoItem() -> VideoItem {
+        VideoItem(
+            id: id ?? 0,
+            bvid: bvid ?? "",
+            aid: aid,
+            title: cleanedTitle,
+            pic: normalizedCoverUrl,
+            duration: durationSeconds,
+            pubdate: pubdate,
+            owner: OwnerInfo(mid: mid ?? 0, name: author ?? "", face: ""),
+            stat: StatInfo(view: playCount, danmaku: danmakuCount, reply: nil, favorite: nil, coin: nil, share: nil, like: nil),
+            cid: nil
+        )
+    }
+
+    /// 是否为视频类型
+    var isVideo: Bool { type == "video" }
 }
 
 // MARK: - 历史

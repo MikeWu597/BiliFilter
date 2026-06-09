@@ -130,8 +130,11 @@ actor ApiClient {
                         }
                     }
                 }
+                print("[ApiClient] 🔑 WBI signing: imgKey=\(imgKey.prefix(8))... subKey=\(subKey.prefix(8))... params=\(params)")
                 let signedParams = WbiSign.sign(params: params, imgKey: imgKey, subKey: subKey, includeRiskFingerprint: includeRiskFingerprint)
                 queryParams = signedParams
+            } else {
+                print("[ApiClient] ⚠️ WBI keys NOT loaded, sending unsigned request")
             }
         }
 
@@ -140,7 +143,15 @@ actor ApiClient {
         components.host = api.baseHost
         components.path = api.path
         if !queryParams.isEmpty {
-            components.queryItems = queryParams.map { URLQueryItem(name: $0.key, value: $0.value) }
+            // 手动编码query string（和WbiSign使用相同的编码函数，避免URLComponents编码差异导致签名失败）
+            let sortedKeys = queryParams.keys.sorted()
+            let encodedParts = sortedKeys.compactMap { key -> String? in
+                guard let value = queryParams[key] else { return nil }
+                let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
+                let encodedValue = WbiSign.encodeURIComponent(value)
+                return "\(encodedKey)=\(encodedValue)"
+            }
+            components.percentEncodedQuery = encodedParts.joined(separator: "&")
         } else {
             components.queryItems = api.queryItems.isEmpty ? nil : api.queryItems
         }
@@ -150,6 +161,14 @@ actor ApiClient {
         var request = URLRequest(url: finalUrl)
         request.httpMethod = api.httpMethod
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        // 搜索端点需要特殊的Origin（Referer由WBI逻辑控制）
+        let isSearchEndpoint = api.path.hasPrefix("/x/web-interface/wbi/search/")
+            || api.path.hasPrefix("/x/web-interface/search/")
+        if isSearchEndpoint {
+            request.setValue("https://search.bilibili.com", forHTTPHeaderField: "Origin")
+        }
+        // WBI签名端点不能带Referer（会导致412/voucher）
         if !needsWbi {
             request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
         }
@@ -168,10 +187,23 @@ actor ApiClient {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("[ApiClient] ❌ invalid response type for \(finalUrl.path)")
             throw ApiError.invalidResponse
         }
 
+        // 搜索请求详细日志
+        if isSearchEndpoint || api.path.contains("search") {
+            print("[ApiClient] 🔍 REQUEST: \(finalUrl.absoluteString)")
+            print("[ApiClient] 🔍 STATUS: \(httpResponse.statusCode)")
+            if let body = String(data: data, encoding: .utf8) {
+                print("[ApiClient] 🔍 BODY (\(data.count)B): \(String(body.prefix(500)))")
+            }
+        }
+
         if httpResponse.statusCode != 200 {
+            if let body = String(data: data, encoding: .utf8) {
+                print("[ApiClient] ❌ HTTP \(httpResponse.statusCode) body: \(String(body.prefix(300)))")
+            }
             throw ApiError.httpError(httpResponse.statusCode)
         }
 
