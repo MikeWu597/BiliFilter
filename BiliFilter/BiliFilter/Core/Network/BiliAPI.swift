@@ -6,7 +6,6 @@ enum BiliHost {
     static let main = "api.bilibili.com"
     static let app = "app.bilibili.com"
     static let live = "api.live.bilibili.com"
-    static let passport = "passport.bilibili.com"
 }
 
 // MARK: - 通用B站响应结构
@@ -79,18 +78,6 @@ enum BiliAPI {
     case favoriteList(mediaId: Int64, pn: Int, ps: Int)
     case watchLaterList
 
-    // MARK: 用户交互
-    case likeVideo(bvid: String, csrf: String)
-    case coinVideo(bvid: String, count: Int, csrf: String)
-    case favVideo(aid: Int64, mediaIds: [Int64], csrf: String)
-    case followUser(mid: Int64, csrf: String)
-    case addToWatchLater(aid: Int64, csrf: String)
-
-    // MARK: 登录
-    case qrCodeUrl
-    case qrCodePoll(qrcodeKey: String)
-    case refreshToken(refreshToken: String)
-
     // MARK: UP主空间
     case spaceInfo(mid: Int64)
     case spaceVideos(mid: Int64, pn: Int, ps: Int)
@@ -115,8 +102,6 @@ extension BiliAPI {
         case .liveList, .followedLive, .liveAreaList, .liveRoomInit,
                 .liveRoomDetail, .livePlayUrl, .danmuInfo, .danmuInfoWbi:
             return BiliHost.live
-        case .qrCodeUrl, .qrCodePoll, .refreshToken:
-            return BiliHost.passport
         default:
             return BiliHost.main
         }
@@ -166,14 +151,6 @@ extension BiliAPI {
         case .favFolders: return "/x/v3/fav/folder/created/list-all"
         case .favoriteList: return "/x/v3/fav/resource/list"
         case .watchLaterList: return "/x/v2/history/toview/web"
-        case .likeVideo: return "/x/web-interface/archive/like"
-        case .coinVideo: return "/x/web-interface/coin/add"
-        case .favVideo: return "/x/v3/fav/resource/deal"
-        case .followUser: return "/x/relation/modify"
-        case .addToWatchLater: return "/x/v2/history/toview/add"
-        case .qrCodeUrl: return "/x/passport-login/web/qrcode/generate"
-        case .qrCodePoll: return "/x/passport-login/web/qrcode/poll"
-        case .refreshToken: return "/x/passport-login/oauth2/refresh_token"
         case .spaceInfo: return "/x/space/wbi/acc/info"
         case .spaceVideos: return "/x/space/wbi/arc/search"
         case .spaceDynamic: return "/x/space/wbi/arc/search"
@@ -188,7 +165,7 @@ extension BiliAPI {
         case .userCard(let mid):
             return [URLQueryItem(name: "mid", value: String(mid)), URLQueryItem(name: "photo", value: "true")]
         case .navInfo, .navStat, .ipZone, .emotes, .liveAreaList, .searchHot,
-                .watchLaterList, .qrCodeUrl, .navConfig, .appUpdateCheck, .bangumiIndex, .searchTrending:
+                .watchLaterList, .navConfig, .appUpdateCheck, .bangumiIndex, .searchTrending:
             return []
         case .recommendFeed(let params), .mobileFeed(let params), .danmuInfoWbi(let params):
             return params.map { URLQueryItem(name: $0.key, value: $0.value) }
@@ -300,27 +277,12 @@ extension BiliAPI {
             return [URLQueryItem(name: "mid", value: String(mid)), URLQueryItem(name: "pn", value: String(pn)), URLQueryItem(name: "ps", value: String(ps)), URLQueryItem(name: "order", value: "pubdate")]
         case .spaceDynamic(let mid, let pn, let ps):
             return [URLQueryItem(name: "host_mid", value: String(mid)), URLQueryItem(name: "pn", value: String(pn)), URLQueryItem(name: "ps", value: String(ps))]
-        case .qrCodePoll(let qrcodeKey):
-            return [URLQueryItem(name: "qrcode_key", value: qrcodeKey)]
-        case .refreshToken(let refreshToken):
-            return [URLQueryItem(name: "refresh_token", value: refreshToken)]
-        case .likeVideo, .coinVideo, .favVideo, .followUser, .addToWatchLater:
-            return []
         }
     }
 
-    var httpMethod: String {
-        switch self {
-        case .likeVideo, .coinVideo, .favVideo, .followUser, .addToWatchLater:
-            return "POST"
-        default:
-            return "GET"
-        }
-    }
+    var httpMethod: String { "GET" }
 
-    var body: Data? {
-        nil // 表单请求由ApiClient单独处理
-    }
+    var body: Data? { nil }
 
     var url: URL? {
         var components = URLComponents()

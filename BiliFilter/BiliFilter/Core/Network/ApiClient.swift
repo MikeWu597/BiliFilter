@@ -3,10 +3,8 @@ import Foundation
 // MARK: - B站API客户端
 actor ApiClient {
     static let shared = ApiClient()
-    static let guest = ApiClient(useCookies: false)
 
     private let session: URLSession
-    private let useCookies: Bool
     private let cookieStorage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "BiliFilter")
 
     private var imgKey: String = ""
@@ -15,14 +13,11 @@ actor ApiClient {
 
     private let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    private init(useCookies: Bool = true) {
-        self.useCookies = useCookies
+    private init() {
         let config = URLSessionConfiguration.default
-        if useCookies {
-            config.httpCookieStorage = cookieStorage
-            config.httpShouldSetCookies = true
-            config.httpCookieAcceptPolicy = .always
-        }
+        config.httpCookieStorage = cookieStorage
+        config.httpShouldSetCookies = true
+        config.httpCookieAcceptPolicy = .always
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
         self.session = URLSession(configuration: config)
@@ -177,13 +172,6 @@ actor ApiClient {
         // 注入Cookie
         injectCookies(into: &request)
 
-        if api.httpMethod == "POST" {
-            if let body = api.body {
-                request.httpBody = body
-                request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-            }
-        }
-
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -224,69 +212,16 @@ actor ApiClient {
         }
     }
 
-    // MARK: - POST表单请求
-
-    func postForm<T: Codable>(
-        _ api: BiliAPI,
-        formFields: [String: String]
-    ) async throws -> T {
-        guard let url = api.url else { throw ApiError.invalidURL }
-
-        var components = URLComponents()
-        components.queryItems = formFields.map { URLQueryItem(name: $0.key, value: $0.value) }
-        let bodyString = components.percentEncodedQuery ?? ""
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = bodyString.data(using: .utf8)
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-
-        injectCookies(into: &request)
-
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw ApiError.invalidResponse
-        }
-        saveCookies(from: httpResponse)
-
-        return try JSONDecoder().decode(T.self, from: data)
-    }
-
     // MARK: - Cookie管理
 
     private func injectCookies(into request: inout URLRequest) {
-        guard useCookies, let url = request.url else { return }
-
+        guard let url = request.url else { return }
         let buvid3 = TokenManager.shared.buvid3
-        let sessdata = TokenManager.shared.sessdata
-        let csrf = TokenManager.shared.csrf
-
-        // 手动拼接Cookie header，避免HTTPCookie.requestHeaderFields的域匹配过滤导致子域名请求丢失Cookie
-        var cookieParts: [String] = []
-        cookieParts.append("buvid3=\(buvid3)")
-        if let s = sessdata, !s.isEmpty { cookieParts.append("SESSDATA=\(s)") }
-        if let c = csrf, !c.isEmpty { cookieParts.append("bili_jct=\(c)") }
-        request.setValue(cookieParts.joined(separator: "; "), forHTTPHeaderField: "Cookie")
-
-        // 对首页/推荐请求打印登录态
-        if request.url?.path.contains("rcmd") == true || request.url?.path.contains("feed") == true {
-            print("[ApiClient] 🍪 hasSESSDATA=\(sessdata?.isEmpty == false), mid=\(TokenManager.shared.mid), isLoggedIn=\(TokenManager.shared.isLoggedIn)")
-        }
+        request.setValue("buvid3=\(buvid3)", forHTTPHeaderField: "Cookie")
     }
 
     private func saveCookies(from response: HTTPURLResponse) {
-        guard let headerFields = response.allHeaderFields as? [String: String],
-              let url = response.url else { return }
-        let cookies = HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
-        for cookie in cookies {
-            if cookie.name == "SESSDATA" {
-                TokenManager.shared.sessdata = cookie.value
-            } else if cookie.name == "bili_jct" {
-                TokenManager.shared.csrf = cookie.value
-            }
-        }
+        // No login cookies to save in guest mode
     }
 }
 

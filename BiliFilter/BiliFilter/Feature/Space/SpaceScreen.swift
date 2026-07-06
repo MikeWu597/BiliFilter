@@ -187,14 +187,12 @@ final class SpaceViewModel: ObservableObject {
             print("[Space] info error: \(error)")
             errorMsg = "用户信息加载失败"
         }
-        // 关注/粉丝数（带cookie）
+        // 关注/粉丝数
         do {
             var req = URLRequest(url: URL(string: "https://api.bilibili.com/x/relation/stat?vmid=\(mid)")!)
             req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
             req.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
-            if let sess = TokenManager.shared.sessdata, !sess.isEmpty {
-                req.setValue("SESSDATA=\(sess); buvid3=\(TokenManager.shared.buvid3)", forHTTPHeaderField: "Cookie")
-            }
+            req.setValue("buvid3=\(TokenManager.shared.buvid3)", forHTTPHeaderField: "Cookie")
             let (data, resp) = try await URLSession.shared.data(for: req)
             guard (resp as? HTTPURLResponse)?.statusCode == 200 else { return }
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],

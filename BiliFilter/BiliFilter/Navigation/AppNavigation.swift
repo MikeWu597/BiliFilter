@@ -13,7 +13,6 @@ enum AppRoute: Hashable {
     case bangumiDetail(seasonId: Int64, epId: Int64 = 0)
     case bangumiPlayer(seasonId: Int64, epId: Int64, resumePositionMs: Int64 = 0)
     case space(mid: Int64)
-    case login
     case web(url: String, title: String? = nil)
     case category(tid: Int, name: String)
     case partition
@@ -96,7 +95,6 @@ struct AppNavigation: View {
         case .bangumiDetail: PlaceholderView(title: "番剧详情", icon: "tv.fill")
         case .bangumiPlayer: PlaceholderView(title: "番剧播放", icon: "play.tv")
         case .space(let mid): SpaceScreen(mid: mid)
-        case .login: LoginScreen()
         case .web: PlaceholderView(title: "网页", icon: "safari")
         case .category: PlaceholderView(title: "分类", icon: "folder")
         case .partition: PlaceholderView(title: "分区", icon: "square.grid.3x3")

@@ -20,9 +20,22 @@ final class PlayerViewModel: ObservableObject {
     @Published var showControls = true
     @Published var isFullscreen = false
     @Published var currentQuality: Int = 80
-    @Published var danmakuEnabled = true
-    @Published var danmakuAlpha: Double = 0.8
-    @Published var danmakuFontScale: Double = 1.0
+    @Published var danmakuEnabled: Bool
+    @Published var danmakuAlpha: Double
+    @Published var danmakuFontScale: Double
+    private var cancellables = Set<AnyCancellable>()
+
+    init(bvid: String, cid: Int64 = 0, aid: Int64 = 0) {
+        self.bvid = bvid; self.cid = cid; self.aid = aid
+        let store = UserDefaultsStore.shared
+        self.danmakuEnabled = store.danmakuEnabled
+        self.danmakuAlpha = store.danmakuAlpha
+        self.danmakuFontScale = store.danmakuFontScale
+
+        $danmakuEnabled.removeDuplicates().sink { store.danmakuEnabled = $0 }.store(in: &cancellables)
+        $danmakuAlpha.removeDuplicates().sink { store.danmakuAlpha = $0 }.store(in: &cancellables)
+        $danmakuFontScale.removeDuplicates().sink { store.danmakuFontScale = $0 }.store(in: &cancellables)
+    }
     @Published var videoInfo: ViewInfo?
     @Published var relatedVideos: [VideoItem] = []
     @Published var pages: [PageItem] = []
@@ -51,10 +64,6 @@ final class PlayerViewModel: ObservableObject {
     private var statusObserver: NSKeyValueObservation?
 
     let bvid: String; let cid: Int64; let aid: Int64
-
-    init(bvid: String, cid: Int64 = 0, aid: Int64 = 0) {
-        self.bvid = bvid; self.cid = cid; self.aid = aid
-    }
 
     private let repo = VideoRepository.shared
 

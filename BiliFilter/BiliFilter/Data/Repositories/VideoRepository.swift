@@ -3,7 +3,6 @@ import Foundation
 actor VideoRepository {
     static let shared = VideoRepository()
     private let api = ApiClient.shared
-    private let guestApi = ApiClient.guest
 
     private var wbiImgKey: String = ""
     private var wbiSubKey: String = ""
@@ -23,7 +22,7 @@ actor VideoRepository {
         print("[Feed] fetch freshIdx=\(freshIdx) params=\(signedParams)")
         let response: BiliApiResponse<RecommendData> = try await api.request(.recommendFeed(params: signedParams), needsWbi: false)
         print("[Feed] code=\(response.code) itemCount=\(response.data?.item?.count ?? 0)")
-        guard response.isSuccess, let data = response.data else {
+        guard let data = response.data, !(data.item?.isEmpty ?? true) else {
             throw ApiError.biliError(code: response.code, message: response.message)
         }
         return data.item ?? []
@@ -71,7 +70,7 @@ actor VideoRepository {
     }
 
     func fetchPlayUrlLegacy(bvid: String, cid: Int64, qn: Int) async throws -> PlayUrlData? {
-        let resp: BiliApiResponse<PlayUrlData> = try await guestApi.request(
+        let resp: BiliApiResponse<PlayUrlData> = try await api.request(
             .playUrlLegacy(bvid: bvid, cid: cid, qn: qn, fnval: 1, platform: "html5", highQuality: qn >= 64 ? 1 : 0)
         )
         guard resp.isSuccess, let data = resp.data else { return nil }
@@ -96,7 +95,7 @@ actor VideoRepository {
         print("[Repo] fetching WBI keys from nav...")
         let resp: BiliApiResponse<NavWbiData> = try await api.request(.navInfo)
         print("[Repo] nav response code=\(resp.code), hasWbi=\(resp.data?.wbi_img != nil)")
-        guard resp.isSuccess, let wbiImg = resp.data?.wbi_img else {
+        guard let wbiImg = resp.data?.wbi_img else {
             throw ApiError.invalidResponse
         }
         let imgKey = wbiImg.img_url.components(separatedBy: "/").last?.components(separatedBy: ".").first ?? ""
