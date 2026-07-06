@@ -48,7 +48,7 @@ struct WatchHistoryScreen: View {
             } else {
                 List {
                     ForEach(filteredVideos) { video in
-                        NavigationLink(value: AppRoute.videoPlayer(bvid: video.bvid)) {
+                        NavigationLink(destination: VideoPlayerScreen(bvid: video.bvid)) {
                             HistoryRow(video: video)
                         }
                     }
