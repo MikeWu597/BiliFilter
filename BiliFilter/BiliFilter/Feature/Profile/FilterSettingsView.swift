@@ -120,6 +120,11 @@ final class FilterSettings: ObservableObject {
     }
 
     func checkVideo(duration: Int, title: String, ownerMid: Int64?, ownerName: String = "", bvid: String = "", coverUrl: String = "", recordAppear: Bool = true) -> String? {
+        // 观看过的视频不过滤
+        if !bvid.isEmpty, WatchHistoryManager.shared.contains(bvid: bvid) {
+            return nil
+        }
+
         // 0. 标记用户过滤（不记录日志）
         if taggedUserFilterEnabled, let mid = ownerMid {
             let tags = UserTagManager.shared.tagsForUser(mid: mid)

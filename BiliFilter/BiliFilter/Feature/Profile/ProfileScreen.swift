@@ -29,6 +29,10 @@ struct ProfileScreen: View {
                 }
 
                 Section {
+                    NavigationLink(destination: WatchHistoryScreen()) {
+                        Label("观看历史", systemImage: "clock.fill")
+                            .foregroundColor(.purple)
+                    }
                     NavigationLink(destination: UserTagsView()) {
                         Label("用户标记", systemImage: "tag.fill")
                             .foregroundColor(.orange)

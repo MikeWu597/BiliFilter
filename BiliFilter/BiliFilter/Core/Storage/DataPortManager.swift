@@ -17,6 +17,7 @@ enum DataPortManager {
         try await exportUIDFilters(to: tmpDir)
         try await exportUserTags(to: tmpDir)
         try await exportVideoTags(to: tmpDir)
+        try await exportWatchHistory(to: tmpDir)
 
         // 压缩
         let zipURL = fm.temporaryDirectory.appendingPathComponent("BiliFilter_export.zip")
@@ -41,6 +42,7 @@ enum DataPortManager {
         try await importUIDFilters(from: tmpDir)
         try await importUserTags(from: tmpDir)
         try await importVideoTags(from: tmpDir)
+        try await importWatchHistory(from: tmpDir)
     }
 
     // MARK: - 各模块导出
@@ -189,6 +191,18 @@ enum DataPortManager {
         }
     }
 
+    private static func exportWatchHistory(to root: URL) async throws {
+        let dir = root.appendingPathComponent("观看历史")
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let videos = await MainActor.run { WatchHistoryManager.shared.allVideos }
+        guard !videos.isEmpty else { return }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(videos)
+        try data.write(to: dir.appendingPathComponent("history.json"))
+    }
+
     private static func exportFilteredCSV(to url: URL, headers: String, records: [String]) throws {
         let csv = headers + "\n" + records.joined(separator: "\n")
         try csv.write(to: url, atomically: true, encoding: .utf8)
@@ -322,6 +336,17 @@ enum DataPortManager {
                 }
             }
         }
+    }
+
+    private static func importWatchHistory(from root: URL) async throws {
+        let dir = root.appendingPathComponent("观看历史")
+        guard fm.fileExists(atPath: dir.path) else { return }
+        let file = dir.appendingPathComponent("history.json")
+        guard fm.fileExists(atPath: file.path) else { return }
+
+        let data = try Data(contentsOf: file)
+        let videos = try JSONDecoder().decode([WatchedVideo].self, from: data)
+        await MainActor.run { WatchHistoryManager.shared.importVideos(videos) }
     }
 
     // MARK: - 工具

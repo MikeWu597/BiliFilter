@@ -104,6 +104,15 @@ final class PlayerViewModel: ObservableObject {
         let realCid = cid > 0 ? cid : (info.cid ?? 0)
         print("[Player] videoInfo ok, title=\(info.title ?? "?"), cid=\(realCid)")
 
+        // 记录观看历史
+        if let title = info.title, !title.isEmpty {
+            WatchHistoryManager.shared.add(
+                bvid: bvid,
+                title: title,
+                coverUrl: info.pic ?? ""
+            )
+        }
+
         // 加载弹幕
         Task { await loadDanmaku(cid: realCid) }
         // 加载评论
